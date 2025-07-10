@@ -5633,6 +5633,11 @@ StartupXLOG(void)
 	 * We should have an aux process resource owner to use, and we should not
 	 * be in a transaction that's installed some other resowner.
 	 */
+
+	 //mikh
+	ereport(LOG, 
+		errmsg("Mikh: startup has started"));
+
 	Assert(AuxProcessResourceOwner != NULL);
 	Assert(CurrentResourceOwner == NULL ||
 		   CurrentResourceOwner == AuxProcessResourceOwner);
