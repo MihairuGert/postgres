@@ -5630,19 +5630,26 @@ StartupXLOG(void)
 	bool		promoted = false;
 
 	/*
+	 * mikh
+	*/
+	ereport(LOG,
+		errmsg("Mikh: startup has started"));
+
+	/*
 	 * We should have an aux process resource owner to use, and we should not
 	 * be in a transaction that's installed some other resowner.
 	 */
-
-	 //mikh
-	ereport(LOG, 
-		errmsg("Mikh: startup has started"));
 
 	Assert(AuxProcessResourceOwner != NULL);
 	Assert(CurrentResourceOwner == NULL ||
 		   CurrentResourceOwner == AuxProcessResourceOwner);
 	CurrentResourceOwner = AuxProcessResourceOwner;
 
+	/*
+	 * mikh
+	*/
+	ereport(LOG,
+		errmsg("Mikh: checking control file checkpoint location"));
 	/*
 	 * Check that contents look valid.
 	 */
@@ -5651,6 +5658,9 @@ StartupXLOG(void)
 				(errcode(ERRCODE_DATA_CORRUPTED),
 				 errmsg("control file contains invalid checkpoint location")));
 
+	ereport(LOG,
+		errmsg("Mikh: analyzing control file state"));
+		
 	switch (ControlFile->state)
 	{
 		case DB_SHUTDOWNED:
@@ -5710,6 +5720,9 @@ StartupXLOG(void)
 		pg_usleep(60000000L);
 #endif
 
+	ereport(LOG,
+		errmsg("Mikh: verifying that pg_wal, pg_wal/archive_status, pg_wal/summaries exist"));
+	
 	/*
 	 * Verify that pg_wal, pg_wal/archive_status, and pg_wal/summaries exist.
 	 * In cases where someone has performed a copy for PITR, these directories
@@ -5739,7 +5752,14 @@ StartupXLOG(void)
 	if (ControlFile->state != DB_SHUTDOWNED &&
 		ControlFile->state != DB_SHUTDOWNED_IN_RECOVERY)
 	{
+		ereport(LOG,
+			errmsg("Mikh: removing temporary WAL-files"));
+
 		RemoveTempXlogFiles();
+
+		ereport(LOG,
+			errmsg("Mikh: syncing data directory"));
+
 		SyncDataDirectory();
 		didCrash = true;
 	}
@@ -5754,6 +5774,11 @@ StartupXLOG(void)
 	 * starting checkpoint, and sets InRecovery and ArchiveRecoveryRequested.
 	 * It also applies the tablespace map file, if any.
 	 */
+
+	/*
+	 * Mikh: look at xlogrecovery.c
+	 */
+
 	InitWalRecovery(ControlFile, &wasShutdown,
 					&haveBackupLabel, &haveTblspcMap);
 	checkPoint = ControlFile->checkPointCopy;
