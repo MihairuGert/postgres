@@ -674,9 +674,12 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	 * user can set SUMMARY OFF to not have the timing information included in
 	 * the output).  By default, ANALYZE sets SUMMARY to true.
 	 */
-	if (es->summary && es->analyze)
+	if (es->summary && es->analyze) 
+	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
+		ExplainPropertyInteger("Invisible Rows", "", 0, es);
+	}
 
 	ExplainCloseGroup("Query", NULL, true, es);
 }
