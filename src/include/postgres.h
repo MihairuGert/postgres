@@ -582,8 +582,8 @@ extern Datum Float8GetDatum(float8 X);
 #endif
 
 /* Hook for additional actions in rows visibility checks */
-typedef void (*Tuples_invisibility_check_hook_type) (bool is_visible);
-extern PGDLLIMPORT Tuples_invisibility_check_hook_type tuples_invisibility_check_hook;
-extern int64 inivisible_tuples_count;
+typedef void (*Rows_invisibility_check_hook_type) (bool is_visible);
+extern PGDLLIMPORT Rows_invisibility_check_hook_type rows_invisibility_check_hook;
+extern int64 inivisible_rows_count;
 
 #endif							/* POSTGRES_H */

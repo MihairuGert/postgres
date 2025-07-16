@@ -1779,8 +1779,8 @@ HeapTupleSatisfiesVisibility(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 	{
 		case SNAPSHOT_MVCC:
 			bool valid = HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
-			if (tuples_invisibility_check_hook) 
-				(*tuples_invisibility_check_hook)(valid);
+			if (rows_invisibility_check_hook) 
+				(*rows_invisibility_check_hook)(valid);
 			return valid;
 		case SNAPSHOT_SELF:
 			return HeapTupleSatisfiesSelf(htup, snapshot, buffer);
