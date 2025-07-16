@@ -525,8 +525,6 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
 			valid = true;
 		else {
 			valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
-			if (tuples_invisibility_check_hook)
-				(*tuples_invisibility_check_hook)(valid);
 		}
 
 		if (check_serializable)
@@ -958,8 +956,7 @@ continue_page:
 			HeapCheckForSerializableConflictOut(visible, scan->rs_base.rs_rd,
 												tuple, scan->rs_cbuf,
 												scan->rs_base.rs_snapshot);
-			if (tuples_invisibility_check_hook)
-				(*tuples_invisibility_check_hook)(visible);
+
 			/* skip tuples not visible to this snapshot */
 			if (!visible) {
 				continue;
@@ -1587,7 +1584,7 @@ heap_getnextslot_tidrange(TableScanDesc sscan, ScanDirection direction,
  * be fetched.
  *
  * It is somewhat inconsistent that we ereport() on invalid block number but
- * return false on invalid item number.  There are a couple of reasons though.
+ * return false on invalid item number.  Thereч are a couple of reasons though.
  * One is that the caller can relatively easily check the block number for
  * validity, but cannot check the item number without reading the page
  * himself.  Another is that when we are following a t_ctid link, we can be
