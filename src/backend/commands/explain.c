@@ -56,6 +56,10 @@ explain_get_index_name_hook_type explain_get_index_name_hook = NULL;
 explain_per_plan_hook_type explain_per_plan_hook = NULL;
 explain_per_node_hook_type explain_per_node_hook = NULL;
 
+/* */
+Tuples_invisibility_check_hook_type tuples_invisibility_check_hook = NULL;
+int64 inivisible_tuples_count = 0;
+
 /*
  * Various places within need to convert bytes to kilobytes.  Round these up
  * to the next whole kilobyte.
@@ -165,6 +169,7 @@ static ExplainWorkersState *ExplainCreateWorkersState(int num_workers);
 static void ExplainOpenWorker(int n, ExplainState *es);
 static void ExplainCloseWorker(int n, ExplainState *es);
 static void ExplainFlushWorkersState(ExplainState *es);
+void standard_CountInvisibleTuples(bool is_visible);
 
 
 
@@ -569,6 +574,11 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ScanDirection dir;
 
+		// Add hook chainging?
+		//Tuples_invisibility_check_hook_type prev_tuples_invisibility_check_hook = tuples_invisibility_check_hook;
+		tuples_invisibility_check_hook = standard_CountInvisibleTuples; 
+		inivisible_tuples_count = 0;
+
 		/* EXPLAIN ANALYZE CREATE TABLE AS WITH NO DATA is weird */
 		if (into && into->skipData)
 			dir = NoMovementScanDirection;
@@ -678,7 +688,9 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
-		ExplainPropertyInteger("Invisible Rows", "", 0, es);
+		ExplainPropertyInteger("Invisible Tuples", "", inivisible_tuples_count, es);
+		inivisible_tuples_count = 0;
+		tuples_invisibility_check_hook = NULL;
 	}
 
 	ExplainCloseGroup("Query", NULL, true, es);
@@ -4977,4 +4989,14 @@ ExplainFlushWorkersState(ExplainState *es)
 	pfree(wstate->worker_str);
 	pfree(wstate->worker_state_save);
 	pfree(wstate);
+}
+
+/*
+ * Counts invisible tuples.
+ */
+void
+standard_CountInvisibleTuples(bool is_visible) {
+	if (!is_visible) {
+		inivisible_tuples_count++;
+	}
 }

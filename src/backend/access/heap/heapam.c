@@ -525,7 +525,8 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
 			valid = true;
 		else {
 			valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
-			Invsible_rows_hook(valid);
+			if (tuples_invisibility_check_hook)
+				(*tuples_invisibility_check_hook)(valid);
 		}
 
 		if (check_serializable)
@@ -957,9 +958,9 @@ continue_page:
 			HeapCheckForSerializableConflictOut(visible, scan->rs_base.rs_rd,
 												tuple, scan->rs_cbuf,
 												scan->rs_base.rs_snapshot);
-
+			if (tuples_invisibility_check_hook)
+				(*tuples_invisibility_check_hook)(visible);
 			/* skip tuples not visible to this snapshot */
-			Invsible_rows_hook(visible);
 			if (!visible) {
 				continue;
 			}
