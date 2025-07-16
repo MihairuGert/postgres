@@ -523,8 +523,10 @@ page_collect_tuples(HeapScanDesc scan, Snapshot snapshot,
 
 		if (all_visible)
 			valid = true;
-		else
+		else {
 			valid = HeapTupleSatisfiesVisibility(&loctup, snapshot, buffer);
+			Invsible_rows_hook(valid);
+		}
 
 		if (check_serializable)
 			HeapCheckForSerializableConflictOut(valid, scan->rs_base.rs_rd,
@@ -957,8 +959,10 @@ continue_page:
 												scan->rs_base.rs_snapshot);
 
 			/* skip tuples not visible to this snapshot */
-			if (!visible)
+			Invsible_rows_hook(visible);
+			if (!visible) {
 				continue;
+			}
 
 			/* skip any tuples that don't match the scan key */
 			if (key != NULL &&
