@@ -1779,8 +1779,9 @@ HeapTupleSatisfiesVisibility(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 	{
 		case SNAPSHOT_MVCC:
 			bool valid = HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
+			// && htup->t_data->t_ctid.ip_blkid.bi_lo
 			if (rows_invisibility_check_hook) 
-				(*rows_invisibility_check_hook)(valid);
+				(*rows_invisibility_check_hook)(htup, valid);
 			return valid;
 		case SNAPSHOT_SELF:
 			return HeapTupleSatisfiesSelf(htup, snapshot, buffer);

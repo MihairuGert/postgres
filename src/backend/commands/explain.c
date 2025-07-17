@@ -45,6 +45,11 @@
 #include "utils/typcache.h"
 #include "utils/xml.h"
 
+struct ExplainInvisibleRows {
+	
+};
+
+typedef struct ExplainInvisibleRows ExplainInvisibleRows;
 
 /* Hook for plugins to get control in ExplainOneQuery() */
 ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
@@ -169,9 +174,7 @@ static ExplainWorkersState *ExplainCreateWorkersState(int num_workers);
 static void ExplainOpenWorker(int n, ExplainState *es);
 static void ExplainCloseWorker(int n, ExplainState *es);
 static void ExplainFlushWorkersState(ExplainState *es);
-void standard_CountInvisibleRows(bool is_visible);
-
-
+void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
 
 /*
  * ExplainQuery -
@@ -4995,7 +4998,7 @@ ExplainFlushWorkersState(ExplainState *es)
  * Counts invisible tuples.
  */
 void
-standard_CountInvisibleRows(bool is_visible) {
+standard_CountInvisibleRows(HeapTuple htup, bool is_visible) {
 	if (!is_visible) {
 		inivisible_rows_count++;
 	}
