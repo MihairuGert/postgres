@@ -581,9 +581,4 @@ extern Datum Float8GetDatum(float8 X);
 #define NON_EXEC_STATIC static
 #endif
 
-/* Hook for additional actions in rows visibility checks */
-typedef void (*Rows_invisibility_check_hook_type) (bool is_visible);
-extern PGDLLIMPORT Rows_invisibility_check_hook_type rows_invisibility_check_hook;
-extern int64 inivisible_rows_count;
-
 #endif							/* POSTGRES_H */
