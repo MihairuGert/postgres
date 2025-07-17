@@ -47,6 +47,7 @@
 
 /* Struct containing TID hash table and invisible rows counter */
 static struct InvisibleRowsData {
+	HASHCTL ctl;
 	HTAB *htab;
 	int64 inivisible_rows_count;
 };
@@ -579,6 +580,15 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ScanDirection dir;
 
+		// Extract me to the outer function.
+
+		memset(&invisible_rows_data.ctl, 0, sizeof(invisible_rows_data.ctl));
+		invisible_rows_data.ctl.keysize = sizeof(int64);
+		invisible_rows_data.ctl.entrysize = sizeof(HeapTuple);
+		invisible_rows_data.htab = hash_create("test hash table", 100, &invisible_rows_data.ctl, HASH_ELEM | HASH_BLOBS);
+
+		//
+
 		// Add hook chainging?
 		//Tuples_invisibility_check_hook_type prev_tuples_invisibility_check_hook = tuples_invisibility_check_hook;
 		rows_invisibility_check_hook = standard_CountInvisibleRows; 
@@ -695,6 +705,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 							 es);
 		ExplainPropertyInteger("Invisible Rows", "", invisible_rows_data.inivisible_rows_count, es);
 		rows_invisibility_check_hook = NULL;
+		hash_destroy(invisible_rows_data.htab);
 	}
 
 	ExplainCloseGroup("Query", NULL, true, es);
@@ -4996,11 +5007,19 @@ ExplainFlushWorkersState(ExplainState *es)
 }
 
 /*
- * Counts invisible tuples.
+ * Counts invisible rows.
  */
 static void
 standard_CountInvisibleRows(HeapTuple htup, bool is_visible) {
-	if (!is_visible) {
+	bool foundPtr;
+	int64 htup_key = ((int64) htup->t_self.ip_posid << 32) | 
+		((int64) htup->t_self.ip_blkid.bi_hi << 16) | 
+		(htup->t_self.ip_blkid.bi_lo);
+
+	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
+
+	if (!is_visible && !foundPtr) 
+	{
 		invisible_rows_data.inivisible_rows_count++;
-	}
+	} 
 }
