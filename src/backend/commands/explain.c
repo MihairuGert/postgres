@@ -45,11 +45,13 @@
 #include "utils/typcache.h"
 #include "utils/xml.h"
 
-struct ExplainInvisibleRows {
-	
+/* Struct containing TID hash table and invisible rows counter */
+static struct InvisibleRowsData {
+	HTAB *htab;
+	int64 inivisible_rows_count;
 };
 
-typedef struct ExplainInvisibleRows ExplainInvisibleRows;
+typedef struct InvisibleRowsData InvisibleRowsData;
 
 /* Hook for plugins to get control in ExplainOneQuery() */
 ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
@@ -63,7 +65,7 @@ explain_per_node_hook_type explain_per_node_hook = NULL;
 
 /* */
 Rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
-int64 inivisible_rows_count = 0;
+static InvisibleRowsData invisible_rows_data; 
 
 /*
  * Various places within need to convert bytes to kilobytes.  Round these up
@@ -174,7 +176,7 @@ static ExplainWorkersState *ExplainCreateWorkersState(int num_workers);
 static void ExplainOpenWorker(int n, ExplainState *es);
 static void ExplainCloseWorker(int n, ExplainState *es);
 static void ExplainFlushWorkersState(ExplainState *es);
-void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
+static void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
 
 /*
  * ExplainQuery -
@@ -580,7 +582,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		// Add hook chainging?
 		//Tuples_invisibility_check_hook_type prev_tuples_invisibility_check_hook = tuples_invisibility_check_hook;
 		rows_invisibility_check_hook = standard_CountInvisibleRows; 
-		inivisible_rows_count = 0;
+		invisible_rows_data.inivisible_rows_count = 0;
 
 		/* EXPLAIN ANALYZE CREATE TABLE AS WITH NO DATA is weird */
 		if (into && into->skipData)
@@ -691,8 +693,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
-		ExplainPropertyInteger("Invisible Tuples", "", inivisible_rows_count, es);
-		inivisible_rows_count = 0;
+		ExplainPropertyInteger("Invisible Rows", "", invisible_rows_data.inivisible_rows_count, es);
 		rows_invisibility_check_hook = NULL;
 	}
 
@@ -4997,9 +4998,9 @@ ExplainFlushWorkersState(ExplainState *es)
 /*
  * Counts invisible tuples.
  */
-void
+static void
 standard_CountInvisibleRows(HeapTuple htup, bool is_visible) {
 	if (!is_visible) {
-		inivisible_rows_count++;
+		invisible_rows_data.inivisible_rows_count++;
 	}
 }
