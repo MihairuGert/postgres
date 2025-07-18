@@ -209,8 +209,4 @@ typedef struct SnapshotData
 	uint64		snapXactCompletionCount;
 } SnapshotData;
 
-/* Hook for additional actions in rows visibility checks */
-typedef void (*Rows_invisibility_check_hook_type) (HeapTuple htup, bool is_visible);
-extern PGDLLIMPORT Rows_invisibility_check_hook_type rows_invisibility_check_hook;
-
 #endif							/* SNAPSHOT_H */

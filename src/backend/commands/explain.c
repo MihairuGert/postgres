@@ -65,7 +65,7 @@ explain_per_plan_hook_type explain_per_plan_hook = NULL;
 explain_per_node_hook_type explain_per_node_hook = NULL;
 
 /* */
-Rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
+rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
 static InvisibleRowsData invisible_rows_data; 
 
 /*
@@ -177,7 +177,10 @@ static ExplainWorkersState *ExplainCreateWorkersState(int num_workers);
 static void ExplainOpenWorker(int n, ExplainState *es);
 static void ExplainCloseWorker(int n, ExplainState *es);
 static void ExplainFlushWorkersState(ExplainState *es);
+
 static void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
+static void InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data);
+static void FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data); 
 
 /*
  * ExplainQuery -
@@ -580,15 +583,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ScanDirection dir;
 
-		// Extract me to the outer function.
-
-		memset(&invisible_rows_data.ctl, 0, sizeof(invisible_rows_data.ctl));
-		invisible_rows_data.ctl.keysize = sizeof(int64);
-		invisible_rows_data.ctl.entrysize = sizeof(HeapTuple);
-		invisible_rows_data.htab = hash_create("test hash table", 100, &invisible_rows_data.ctl, HASH_ELEM | HASH_BLOBS);
-
-		//
-
+		InitInvisibleRowsHTAB(&invisible_rows_data);
 		// Add hook chainging?
 		//Tuples_invisibility_check_hook_type prev_tuples_invisibility_check_hook = tuples_invisibility_check_hook;
 		rows_invisibility_check_hook = standard_CountInvisibleRows; 
@@ -705,7 +700,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 							 es);
 		ExplainPropertyInteger("Invisible Rows", "", invisible_rows_data.inivisible_rows_count, es);
 		rows_invisibility_check_hook = NULL;
-		hash_destroy(invisible_rows_data.htab);
+		FiniInvisibleRowsHTAB(&invisible_rows_data);
 	}
 
 	ExplainCloseGroup("Query", NULL, true, es);
@@ -5010,7 +5005,8 @@ ExplainFlushWorkersState(ExplainState *es)
  * Counts invisible rows.
  */
 static void
-standard_CountInvisibleRows(HeapTuple htup, bool is_visible) {
+standard_CountInvisibleRows(HeapTuple htup, bool is_visible) 
+{
 	bool foundPtr;
 	int64 htup_key = ((int64) htup->t_self.ip_posid << 32) | 
 		((int64) htup->t_self.ip_blkid.bi_hi << 16) | 
@@ -5019,7 +5015,27 @@ standard_CountInvisibleRows(HeapTuple htup, bool is_visible) {
 	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
 
 	if (!is_visible && !foundPtr) 
-	{
 		invisible_rows_data.inivisible_rows_count++;
-	} 
+}
+
+/*
+ * Function to set TIDs hash table
+ */
+static void 
+InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
+{
+	memset(&invisible_rows_data->ctl, 0, sizeof(invisible_rows_data->ctl));
+	invisible_rows_data->ctl.keysize = sizeof(int64);
+	invisible_rows_data->ctl.entrysize = sizeof(HeapTuple);
+	
+	invisible_rows_data->htab = hash_create("test hash table", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
+}
+
+/*
+ * Function to destroy TIDs hash table
+ */
+static void 
+FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
+{
+	hash_destroy(invisible_rows_data->htab);
 }
