@@ -18,6 +18,8 @@
 
 struct ExplainState;			/* defined in explain_state.h */
 
+extern PGDLLIMPORT bool track_invisible_rows;	/* GUC variable */
+
 /* Hook for plugins to get control in ExplainOneQuery() */
 typedef void (*ExplainOneQuery_hook_type) (Query *query,
 										   int cursorOptions,

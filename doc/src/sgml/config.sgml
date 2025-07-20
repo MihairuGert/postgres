@@ -8675,6 +8675,22 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
       </listitem>
      </varlistentry>
 
+     <varlistentry id="track_invisible_rows" xreflabel="track_invisible_rows">
+      <term><varname>track_invisible_rows</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>track_invisible_rows</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Enables invisible rows counter. This parameter is off by default,
+        as it is mostly needed for monitoring active transactions. 
+        The invisible rows counter value can be displayed with EXPLAIN ANALYZE
+        command.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-track-functions" xreflabel="track_functions">
       <term><varname>track_functions</varname> (<type>enum</type>)
       <indexterm>

@@ -64,9 +64,10 @@ explain_get_index_name_hook_type explain_get_index_name_hook = NULL;
 explain_per_plan_hook_type explain_per_plan_hook = NULL;
 explain_per_node_hook_type explain_per_node_hook = NULL;
 
-/* */
+/* Hook to get control of HeapTupleSatisfiesMVCC() result */
 rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
 static InvisibleRowsData invisible_rows_data; 
+bool track_invisible_rows = false;
 
 /*
  * Various places within need to convert bytes to kilobytes.  Round these up
@@ -518,6 +519,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	int			eflags;
 	int			instrument_option = 0;
 	SerializeMetrics serializeMetrics = {0};
+	bool do_track_invisible_rows = false;
 
 	Assert(plannedstmt->commandType != CMD_UTILITY);
 
@@ -583,11 +585,13 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ScanDirection dir;
 
-		InitInvisibleRowsHTAB(&invisible_rows_data);
-		// Add hook chainging?
-		//Tuples_invisibility_check_hook_type prev_tuples_invisibility_check_hook = tuples_invisibility_check_hook;
-		rows_invisibility_check_hook = standard_CountInvisibleRows; 
-		invisible_rows_data.inivisible_rows_count = 0;
+		if (track_invisible_rows) 
+		{
+			InitInvisibleRowsHTAB(&invisible_rows_data);
+			rows_invisibility_check_hook = standard_CountInvisibleRows; 
+			invisible_rows_data.inivisible_rows_count = 0;
+			do_track_invisible_rows = true;
+		}
 
 		/* EXPLAIN ANALYZE CREATE TABLE AS WITH NO DATA is weird */
 		if (into && into->skipData)
@@ -698,9 +702,15 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
-		ExplainPropertyInteger("Invisible Rows", "", invisible_rows_data.inivisible_rows_count, es);
-		rows_invisibility_check_hook = NULL;
-		FiniInvisibleRowsHTAB(&invisible_rows_data);
+		
+		if (do_track_invisible_rows) 
+		{
+			ExplainPropertyInteger("Invisible Rows", "", 
+									invisible_rows_data.inivisible_rows_count, es);
+			rows_invisibility_check_hook = NULL;
+			FiniInvisibleRowsHTAB(&invisible_rows_data);
+			do_track_invisible_rows = false;
+		}
 	}
 
 	ExplainCloseGroup("Query", NULL, true, es);
@@ -5013,26 +5023,26 @@ standard_CountInvisibleRows(HeapTuple htup, bool is_visible)
 		(htup->t_self.ip_blkid.bi_lo);
 
 	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
-
+	
 	if (!is_visible && !foundPtr) 
 		invisible_rows_data.inivisible_rows_count++;
 }
 
 /*
- * Function to set TIDs hash table
+ * Function to set TIDs hash table.
  */
 static void 
 InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
 {
 	memset(&invisible_rows_data->ctl, 0, sizeof(invisible_rows_data->ctl));
 	invisible_rows_data->ctl.keysize = sizeof(int64);
-	invisible_rows_data->ctl.entrysize = sizeof(HeapTuple);
+	invisible_rows_data->ctl.entrysize = sizeof(int64);
 	
-	invisible_rows_data->htab = hash_create("test hash table", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
+	invisible_rows_data->htab = hash_create("Invisible rows htab", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
 }
 
 /*
- * Function to destroy TIDs hash table
+ * Function to destroy TIDs hash table.
  */
 static void 
 FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
