@@ -57,6 +57,8 @@ typedef struct ExplainState
 	bool		generic;		/* generate a generic plan */
 	ExplainSerializeOption serialize;	/* serialize the query's output? */
 	ExplainFormat format;		/* output format */
+	bool		runtime;		/* print intermediate state of query execution,
+								   not after completion */
 	/* state for output formatting --- not reset for each new plan tree */
 	int			indent;			/* current indentation level */
 	List	   *grouping_stack; /* format-specific grouping state */

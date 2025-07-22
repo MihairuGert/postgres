@@ -6,6 +6,7 @@
  *
  * Portions Copyright (c) 1996-2024, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
+ * Portions Copyright (c) 2024, Postgres Professional
  *
  * src/include/storage/procsignal.h
  *
@@ -16,6 +17,8 @@
 
 #include "storage/procnumber.h"
 
+
+#define NUM_CUSTOM_PROCSIGNALS 64
 
 /*
  * Reasons for signaling a Postgres child process (a backend or an auxiliary
@@ -29,6 +32,8 @@
  */
 typedef enum
 {
+	INVALID_PROCSIGNAL = -1,	/* Must be first */
+
 	PROCSIG_CATCHUP_INTERRUPT,	/* sinval catchup interrupt */
 	PROCSIG_NOTIFY_INTERRUPT,	/* listen/notify interrupt */
 	PROCSIG_PARALLEL_MESSAGE,	/* message from cooperating parallel backend */
@@ -36,6 +41,14 @@ typedef enum
 	PROCSIG_BARRIER,			/* global barrier interrupt  */
 	PROCSIG_LOG_MEMORY_CONTEXT, /* ask backend to log the memory contexts */
 	PROCSIG_PARALLEL_APPLY_MESSAGE, /* Message from parallel apply workers */
+
+	PROCSIG_CUSTOM_1,
+	/*
+	 * PROCSIG_CUSTOM_2,
+	 * ...,
+	 * PROCSIG_CUSTOM_N-1,
+	 */
+	PROCSIG_CUSTOM_N = PROCSIG_CUSTOM_1 + NUM_CUSTOM_PROCSIGNALS - 1,
 
 	/* Recovery conflict reasons */
 	PROCSIG_RECOVERY_CONFLICT_FIRST,
@@ -56,6 +69,9 @@ typedef enum
 	PROCSIGNAL_BARRIER_SMGRRELEASE, /* ask smgr to close files */
 } ProcSignalBarrierType;
 
+/* Handler of custom process signal */
+typedef void (*ProcSignalHandler_type) (void);
+
 /*
  * prototypes for functions in procsignal.c
  */
@@ -63,12 +79,15 @@ extern Size ProcSignalShmemSize(void);
 extern void ProcSignalShmemInit(void);
 
 extern void ProcSignalInit(void);
+extern ProcSignalReason
+	RegisterCustomProcSignalHandler(ProcSignalHandler_type handler);
 extern int	SendProcSignal(pid_t pid, ProcSignalReason reason,
 						   ProcNumber procNumber);
 
 extern uint64 EmitProcSignalBarrier(ProcSignalBarrierType type);
 extern void WaitForProcSignalBarrier(uint64 generation);
 extern void ProcessProcSignalBarrier(void);
+extern void CheckAndHandleCustomSignals(void);
 
 extern void procsignal_sigusr1_handler(SIGNAL_ARGS);
 
