@@ -45,6 +45,12 @@
 #include "utils/typcache.h"
 #include "utils/xml.h"
 
+/* Hash table entry */
+typedef struct hashelem {
+    int64 key;
+    int64 data;
+} HashElem;
+
 /* Struct containing TID hash table and invisible rows counter */
 static struct InvisibleRowsData {
 	HASHCTL ctl;
@@ -5036,7 +5042,7 @@ InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data)
 {
 	memset(&invisible_rows_data->ctl, 0, sizeof(invisible_rows_data->ctl));
 	invisible_rows_data->ctl.keysize = sizeof(int64);
-	invisible_rows_data->ctl.entrysize = sizeof(int64);
+	invisible_rows_data->ctl.entrysize = sizeof(HashElem);
 	
 	invisible_rows_data->htab = hash_create("Invisible rows htab", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
 }
