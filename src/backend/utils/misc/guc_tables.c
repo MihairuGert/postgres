@@ -39,6 +39,7 @@
 #include "catalog/storage.h"
 #include "commands/async.h"
 #include "commands/event_trigger.h"
+#include "commands/explain.h"
 #include "commands/tablespace.h"
 #include "commands/trigger.h"
 #include "commands/user.h"
@@ -1422,6 +1423,15 @@ struct config_bool ConfigureNamesBool[] =
 			NULL
 		},
 		&track_wal_io_timing,
+		false,
+		NULL, NULL, NULL
+	},
+	{
+		{"track_invisible_rows", PGC_SUSET, STATS_CUMULATIVE,
+			gettext_noop("Activates invisible rows counter."),
+			NULL
+		},
+		&track_invisible_rows,
 		false,
 		NULL, NULL, NULL
 	},

@@ -86,4 +86,7 @@ extern void HeapTupleHeaderAdjustCmax(HeapTupleHeader tup,
 /* Prototype for HeapTupleHeader accessors in heapam.c */
 extern TransactionId HeapTupleGetUpdateXid(HeapTupleHeader tuple);
 
+typedef void (*rows_invisibility_check_hook_type) (HeapTuple htup, bool is_visible);
+extern PGDLLIMPORT rows_invisibility_check_hook_type rows_invisibility_check_hook;
+
 #endif							/* HTUP_H */

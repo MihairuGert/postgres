@@ -17,6 +17,8 @@
 #include "lib/stringinfo.h"
 #include "parser/parse_node.h"
 
+extern PGDLLIMPORT bool track_invisible_rows;	/* GUC variable */
+
 typedef enum ExplainSerializeOption
 {
 	EXPLAIN_SERIALIZE_NONE,

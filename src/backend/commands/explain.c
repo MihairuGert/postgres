@@ -42,6 +42,14 @@
 #include "utils/typcache.h"
 #include "utils/xml.h"
 
+/* Struct containing TID hash table and invisible rows counter */
+static struct InvisibleRowsData {
+	HASHCTL ctl;
+	HTAB *htab;
+	int64 inivisible_rows_count;
+};
+
+typedef struct InvisibleRowsData InvisibleRowsData;
 
 /* Hook for plugins to get control in ExplainOneQuery() */
 ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
@@ -49,6 +57,10 @@ ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
 /* Hook for plugins to get control in explain_get_index_name() */
 explain_get_index_name_hook_type explain_get_index_name_hook = NULL;
 
+/* Hook to get control of HeapTupleSatisfiesMVCC() result */
+rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
+static InvisibleRowsData invisible_rows_data; 
+bool track_invisible_rows = false;
 
 /* Instrumentation data for SERIALIZE option */
 typedef struct SerializeMetrics
@@ -174,7 +186,9 @@ static void ExplainYAMLLineStarting(ExplainState *es);
 static void escape_yaml(StringInfo buf, const char *str);
 static SerializeMetrics GetSerializationMetrics(DestReceiver *dest);
 
-
+static void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
+static void InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data);
+static void FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data);
 
 /*
  * ExplainQuery -
@@ -628,6 +642,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	int			eflags;
 	int			instrument_option = 0;
 	SerializeMetrics serializeMetrics = {0};
+	bool do_track_invisible_rows = false;
 
 	Assert(plannedstmt->commandType != CMD_UTILITY);
 
@@ -692,6 +707,14 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	if (es->analyze)
 	{
 		ScanDirection dir;
+
+		if (track_invisible_rows) 
+		{
+			InitInvisibleRowsHTAB(&invisible_rows_data);
+			rows_invisibility_check_hook = standard_CountInvisibleRows; 
+			invisible_rows_data.inivisible_rows_count = 0;
+			do_track_invisible_rows = true;
+		}
 
 		/* EXPLAIN ANALYZE CREATE TABLE AS WITH NO DATA is weird */
 		if (into && into->skipData)
@@ -794,9 +817,18 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	 * the output).  By default, ANALYZE sets SUMMARY to true.
 	 */
 	if (es->summary && es->analyze)
+	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
-
+		if (do_track_invisible_rows) 
+		{
+			ExplainPropertyInteger("Invisible Rows", "", 
+									invisible_rows_data.inivisible_rows_count, es);
+			rows_invisibility_check_hook = NULL;
+			FiniInvisibleRowsHTAB(&invisible_rows_data);
+			do_track_invisible_rows = false;
+		}
+	}
 	ExplainCloseGroup("Query", NULL, true, es);
 }
 
@@ -5699,4 +5731,43 @@ GetSerializationMetrics(DestReceiver *dest)
 	INSTR_TIME_SET_ZERO(empty.timeSpent);
 
 	return empty;
+}
+
+/*
+ * Counts invisible rows.
+ */
+static void
+standard_CountInvisibleRows(HeapTuple htup, bool is_visible) 
+{
+	bool foundPtr;
+	int64 htup_key = ((int64) htup->t_self.ip_posid << 32) | 
+		((int64) htup->t_self.ip_blkid.bi_hi << 16) | 
+		(htup->t_self.ip_blkid.bi_lo);
+
+	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
+	
+	if (!is_visible && !foundPtr) 
+		invisible_rows_data.inivisible_rows_count++;
+}
+
+/*
+ * Function to set TIDs hash table.
+ */
+static void 
+InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
+{
+	memset(&invisible_rows_data->ctl, 0, sizeof(invisible_rows_data->ctl));
+	invisible_rows_data->ctl.keysize = sizeof(int64);
+	invisible_rows_data->ctl.entrysize = sizeof(int64);
+	
+	invisible_rows_data->htab = hash_create("Invisible rows htab", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
+}
+
+/*
+ * Function to destroy TIDs hash table.
+ */
+static void 
+FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
+{
+	hash_destroy(invisible_rows_data->htab);
 }
