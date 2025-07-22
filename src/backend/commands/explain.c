@@ -5029,6 +5029,9 @@ standard_CountInvisibleRows(HeapTuple htup, bool is_visible)
 		(htup->t_self.ip_blkid.bi_lo);
 
 	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
+
+	if (invisible_rows_data.inivisible_rows_count % 1000 == 0)
+		elog(LOG, "%d", invisible_rows_data.inivisible_rows_count);
 	
 	if (!is_visible && !foundPtr) 
 		invisible_rows_data.inivisible_rows_count++;
