@@ -52,9 +52,7 @@ typedef struct hashelem {
 } HashElem;
 
 /* Struct containing TID hash table and invisible rows counter */
-static struct InvisibleRowsData {
-	HASHCTL ctl;
-	HTAB *htab;
+struct InvisibleRowsData {
 	int64 inivisible_rows_count;
 };
 
@@ -186,8 +184,6 @@ static void ExplainCloseWorker(int n, ExplainState *es);
 static void ExplainFlushWorkersState(ExplainState *es);
 
 static void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
-static void InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data);
-static void FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data); 
 
 /*
  * ExplainQuery -
@@ -593,7 +589,6 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 
 		if (track_invisible_rows) 
 		{
-			InitInvisibleRowsHTAB(&invisible_rows_data);
 			rows_invisibility_check_hook = standard_CountInvisibleRows; 
 			invisible_rows_data.inivisible_rows_count = 0;
 			do_track_invisible_rows = true;
@@ -714,7 +709,6 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 			ExplainPropertyInteger("Invisible Rows", "", 
 									invisible_rows_data.inivisible_rows_count, es);
 			rows_invisibility_check_hook = NULL;
-			FiniInvisibleRowsHTAB(&invisible_rows_data);
 			do_track_invisible_rows = false;
 		}
 	}
@@ -5022,39 +5016,7 @@ ExplainFlushWorkersState(ExplainState *es)
  */
 static void
 standard_CountInvisibleRows(HeapTuple htup, bool is_visible) 
-{
-	bool foundPtr;
-	int64 htup_key = ((int64) htup->t_self.ip_posid << 32) | 
-		((int64) htup->t_self.ip_blkid.bi_hi << 16) | 
-		(htup->t_self.ip_blkid.bi_lo);
-
-	hash_search(invisible_rows_data.htab, &htup_key, HASH_ENTER, &foundPtr);
-
-	if (invisible_rows_data.inivisible_rows_count % 1000 == 0)
-		elog(LOG, "%d", invisible_rows_data.inivisible_rows_count);
-	
-	if (!is_visible && !foundPtr) 
+{	
+	if (!is_visible) 
 		invisible_rows_data.inivisible_rows_count++;
-}
-
-/*
- * Function to set TIDs hash table.
- */
-static void 
-InitInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
-{
-	memset(&invisible_rows_data->ctl, 0, sizeof(invisible_rows_data->ctl));
-	invisible_rows_data->ctl.keysize = sizeof(int64);
-	invisible_rows_data->ctl.entrysize = sizeof(HashElem);
-	
-	invisible_rows_data->htab = hash_create("Invisible rows htab", 100, &invisible_rows_data->ctl, HASH_ELEM | HASH_BLOBS);
-}
-
-/*
- * Function to destroy TIDs hash table.
- */
-static void 
-FiniInvisibleRowsHTAB(InvisibleRowsData *invisible_rows_data) 
-{
-	hash_destroy(invisible_rows_data->htab);
 }
