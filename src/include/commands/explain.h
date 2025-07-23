@@ -146,4 +146,7 @@ extern void ExplainCloseGroup(const char *objtype, const char *labelname,
 
 extern DestReceiver *CreateExplainSerializeDestReceiver(ExplainState *es);
 
+extern void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
+extern void ResetInvisibleRowsCount();
+
 #endif							/* EXPLAIN_H */

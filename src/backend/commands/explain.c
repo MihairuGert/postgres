@@ -184,8 +184,6 @@ static void ExplainYAMLLineStarting(ExplainState *es);
 static void escape_yaml(StringInfo buf, const char *str);
 static SerializeMetrics GetSerializationMetrics(DestReceiver *dest);
 
-static void standard_CountInvisibleRows(HeapTuple htup, bool is_visible);
-
 /*
  * ExplainQuery -
  *	  execute an EXPLAIN command
@@ -1986,6 +1984,10 @@ ExplainNode(PlanState *planstate, List *ancestors,
 					appendStringInfo(es->str,
 							" (Current loop: actual rows=%.0f, loop number=%.0f)",
 							rows, loop_num);
+				if (track_invisible_rows) 
+					appendStringInfo(es->str,
+							" (Current loop: invisible rows=%ld)",
+							invisible_rows_data.inivisible_rows_count);
 			}
 			else
 			{
@@ -2001,6 +2003,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 						ExplainPropertyFloat("Running Time", NULL, total_sec, 3, es);
 				}
 				ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
+				if (track_invisible_rows)
+					ExplainPropertyInteger("Invisible Rows", NULL, invisible_rows_data.inivisible_rows_count, es);
 			}
 			ExplainCloseGroup("Current loop", "Current loop", true, es);
 		}
@@ -5730,9 +5734,20 @@ GetSerializationMetrics(DestReceiver *dest)
 /*
  * Counts invisible rows.
  */
-static void
+void
 standard_CountInvisibleRows(HeapTuple htup, bool is_visible) 
 {	
 	if (!is_visible) 
 		invisible_rows_data.inivisible_rows_count++;
 }
+
+
+/*
+ * Sets invisible rows count to zero.
+ */
+void
+ResetInvisibleRowsCount() 
+{	
+	invisible_rows_data.inivisible_rows_count = 0;
+}
+
