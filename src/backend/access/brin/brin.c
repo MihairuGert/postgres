@@ -2547,7 +2547,7 @@ _brin_end_parallel(BrinLeader *brinleader, BrinBuildState *state)
 	 * or we might get incomplete data.)
 	 */
 	for (i = 0; i < brinleader->pcxt->nworkers_launched; i++)
-		InstrAccumParallelQuery(&brinleader->bufferusage[i], &brinleader->walusage[i]);
+		InstrAccumParallelQuery(&brinleader->bufferusage[i], &brinleader->walusage[i], NULL);
 
 	/* Free last reference to MVCC snapshot, if one was used */
 	if (IsMVCCSnapshot(brinleader->snapshot))
@@ -2922,7 +2922,7 @@ _brin_parallel_build_main(dsm_segment *seg, shm_toc *toc)
 	bufferusage = shm_toc_lookup(toc, PARALLEL_KEY_BUFFER_USAGE, false);
 	walusage = shm_toc_lookup(toc, PARALLEL_KEY_WAL_USAGE, false);
 	InstrEndParallelQuery(&bufferusage[ParallelWorkerNumber],
-						  &walusage[ParallelWorkerNumber]);
+						  &walusage[ParallelWorkerNumber], NULL);
 
 	index_close(indexRel, indexLockmode);
 	table_close(heapRel, heapLockmode);

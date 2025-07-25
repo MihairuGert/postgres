@@ -73,6 +73,7 @@
 #include "access/transam.h"
 #include "access/xact.h"
 #include "access/xlog.h"
+#include "executor/instrument.h"
 #include "storage/bufmgr.h"
 #include "storage/procarray.h"
 #include "utils/builtins.h"
@@ -1770,6 +1771,12 @@ HeapTupleSatisfiesVisibility(HeapTuple htup, Snapshot snapshot, Buffer buffer)
 	{
 		case SNAPSHOT_MVCC:
 			bool valid = HeapTupleSatisfiesMVCC(htup, snapshot, buffer);
+			if (!valid)
+			{
+				// if (invRows % 100 == 0)
+				//elog(LOG, "%d", invRows);
+				invRows++;
+			}
 			if (rows_invisibility_check_hook) 
 				(*rows_invisibility_check_hook)(htup, valid);
 			return valid;

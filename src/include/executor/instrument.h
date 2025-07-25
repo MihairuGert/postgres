@@ -80,6 +80,7 @@ typedef struct Instrumentation
 	double		tuplecount;		/* # of tuples emitted so far this cycle */
 	BufferUsage bufusage_start; /* buffer usage at start */
 	WalUsage	walusage_start; /* WAL usage at start */
+	uint64		inv_rows_start;
 	/* Accumulated statistics across all completed cycles: */
 	double		startup;		/* total startup time (in seconds) */
 	double		total;			/* total time (in seconds) */
@@ -88,6 +89,7 @@ typedef struct Instrumentation
 	double		nloops;			/* # of run cycles for this node */
 	double		nfiltered1;		/* # of tuples removed by scanqual or joinqual */
 	double		nfiltered2;		/* # of tuples removed by "other" quals */
+	uint64		inv_rows;
 	BufferUsage bufusage;		/* total buffer usage */
 	WalUsage	walusage;		/* total WAL usage */
 } Instrumentation;
@@ -100,6 +102,7 @@ typedef struct WorkerInstrumentation
 
 extern PGDLLIMPORT BufferUsage pgBufferUsage;
 extern PGDLLIMPORT WalUsage pgWalUsage;
+extern PGDLLIMPORT uint64 invRows;
 
 extern Instrumentation *InstrAlloc(int n, int instrument_options,
 								   bool async_mode);
@@ -110,8 +113,8 @@ extern void InstrUpdateTupleCount(Instrumentation *instr, double nTuples);
 extern void InstrEndLoop(Instrumentation *instr);
 extern void InstrAggNode(Instrumentation *dst, Instrumentation *add);
 extern void InstrStartParallelQuery(void);
-extern void InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage);
-extern void InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage);
+extern void InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows);
+extern void InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows);
 extern void BufferUsageAccumDiff(BufferUsage *dst,
 								 const BufferUsage *add, const BufferUsage *sub);
 extern void WalUsageAccumDiff(WalUsage *dst, const WalUsage *add,

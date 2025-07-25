@@ -1616,7 +1616,7 @@ _bt_end_parallel(BTLeader *btleader)
 	 * or we might get incomplete data.)
 	 */
 	for (i = 0; i < btleader->pcxt->nworkers_launched; i++)
-		InstrAccumParallelQuery(&btleader->bufferusage[i], &btleader->walusage[i]);
+		InstrAccumParallelQuery(&btleader->bufferusage[i], &btleader->walusage[i], NULL);
 
 	/* Free last reference to MVCC snapshot, if one was used */
 	if (IsMVCCSnapshot(btleader->snapshot))
@@ -1832,7 +1832,7 @@ _bt_parallel_build_main(dsm_segment *seg, shm_toc *toc)
 	bufferusage = shm_toc_lookup(toc, PARALLEL_KEY_BUFFER_USAGE, false);
 	walusage = shm_toc_lookup(toc, PARALLEL_KEY_WAL_USAGE, false);
 	InstrEndParallelQuery(&bufferusage[ParallelWorkerNumber],
-						  &walusage[ParallelWorkerNumber]);
+						  &walusage[ParallelWorkerNumber], NULL);
 
 #ifdef BTREE_BUILD_STATS
 	if (log_btree_build_stats)

@@ -21,9 +21,12 @@ BufferUsage pgBufferUsage;
 static BufferUsage save_pgBufferUsage;
 WalUsage	pgWalUsage;
 static WalUsage save_pgWalUsage;
+uint64		invRows;
+static uint64 save_invRows;
 
 static void BufferUsageAdd(BufferUsage *dst, const BufferUsage *add);
 static void WalUsageAdd(WalUsage *dst, WalUsage *add);
+static void InvRowsAdd(uint64 *dst, uint64 *add);
 
 
 /* Allocate new instrumentation structure(s) */
@@ -77,6 +80,8 @@ InstrStartNode(Instrumentation *instr)
 
 	if (instr->need_walusage)
 		instr->walusage_start = pgWalUsage;
+
+	instr->inv_rows_start = invRows;
 }
 
 /* Exit from a plan node */
@@ -109,6 +114,10 @@ InstrStopNode(Instrumentation *instr, double nTuples)
 	if (instr->need_walusage)
 		WalUsageAccumDiff(&instr->walusage,
 						  &pgWalUsage, &instr->walusage_start);
+
+	instr->inv_rows += invRows - instr->inv_rows_start;
+	//if (instr->inv_rows == 0)
+	//	elog(LOG, "%ld += %ld - %ld", instr->inv_rows, invRows, instr->inv_rows_start);
 
 	/* Is this the first tuple of this cycle? */
 	if (!instr->running)
@@ -193,6 +202,8 @@ InstrAggNode(Instrumentation *dst, Instrumentation *add)
 
 	if (dst->need_walusage)
 		WalUsageAdd(&dst->walusage, &add->walusage);
+
+	InvRowsAdd(&dst->inv_rows, &add->inv_rows);
 }
 
 /* note current values during parallel executor startup */
@@ -201,24 +212,32 @@ InstrStartParallelQuery(void)
 {
 	save_pgBufferUsage = pgBufferUsage;
 	save_pgWalUsage = pgWalUsage;
+	save_invRows = invRows;
 }
 
 /* report usage after parallel executor shutdown */
 void
-InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
+InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows)
 {
 	memset(bufusage, 0, sizeof(BufferUsage));
 	BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
+	if (invrows)
+	{
+		*invrows = 0;
+		*invrows += invRows - save_invRows;
+	}
 }
 
 /* accumulate work done by workers in leader's stats */
 void
-InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
+InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows)
 {
 	BufferUsageAdd(&pgBufferUsage, bufusage);
 	WalUsageAdd(&pgWalUsage, walusage);
+	if (invrows)
+		InvRowsAdd(&invRows, invrows);
 }
 
 /* dst += add */
@@ -288,4 +307,10 @@ WalUsageAccumDiff(WalUsage *dst, const WalUsage *add, const WalUsage *sub)
 	dst->wal_bytes += add->wal_bytes - sub->wal_bytes;
 	dst->wal_records += add->wal_records - sub->wal_records;
 	dst->wal_fpi += add->wal_fpi - sub->wal_fpi;
+}
+
+static void 
+InvRowsAdd(uint64 *dst, uint64 *add) 
+{
+	*dst += *add;
 }

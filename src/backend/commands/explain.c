@@ -633,6 +633,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	QueryDesc  *queryDesc;
 	instr_time	starttime;
 	double		totaltime = 0;
+	uint64		inv_rows = 0;
 	int			eflags;
 	int			instrument_option = 0;
 	SerializeMetrics serializeMetrics = {0};
@@ -817,6 +818,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		{
 			ExplainPropertyInteger("Invisible Rows", "", 
 									invisible_rows_data.inivisible_rows_count, es);
+
 			rows_invisibility_check_hook = NULL;
 			do_track_invisible_rows = false;
 		}
@@ -1905,6 +1907,9 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				appendStringInfo(es->str,
 								 " (actual rows=%.0f loops=%.0f)",
 								 rows, nloops);
+			appendStringInfo(es->str,
+							" (invisible rows=%ld)",
+							planstate->instrument->inv_rows);
 		}
 		else
 		{
@@ -1917,6 +1922,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			}
 			ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
 			ExplainPropertyFloat("Actual Loops", NULL, nloops, 0, es);
+			ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
 		}
 	}
 	else if (es->analyze && !es->runtime)
@@ -1987,7 +1993,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				if (track_invisible_rows) 
 					appendStringInfo(es->str,
 							" (Current loop: invisible rows=%ld)",
-							invisible_rows_data.inivisible_rows_count);
+							planstate->instrument->inv_rows);
 			}
 			else
 			{
@@ -2004,7 +2010,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				}
 				ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
 				if (track_invisible_rows)
-					ExplainPropertyInteger("Invisible Rows", NULL, invisible_rows_data.inivisible_rows_count, es);
+					ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
 			}
 			ExplainCloseGroup("Current loop", "Current loop", true, es);
 		}

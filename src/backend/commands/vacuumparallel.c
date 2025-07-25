@@ -735,7 +735,7 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
 		WaitForParallelWorkersToFinish(pvs->pcxt);
 
 		for (int i = 0; i < pvs->pcxt->nworkers_launched; i++)
-			InstrAccumParallelQuery(&pvs->buffer_usage[i], &pvs->wal_usage[i]);
+			InstrAccumParallelQuery(&pvs->buffer_usage[i], &pvs->wal_usage[i], NULL);
 	}
 
 	/*
@@ -1083,7 +1083,7 @@ parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
 	buffer_usage = shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_BUFFER_USAGE, false);
 	wal_usage = shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_WAL_USAGE, false);
 	InstrEndParallelQuery(&buffer_usage[ParallelWorkerNumber],
-						  &wal_usage[ParallelWorkerNumber]);
+						  &wal_usage[ParallelWorkerNumber], NULL);
 
 	TidStoreDetach(dead_items);
 
