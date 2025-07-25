@@ -223,6 +223,7 @@ InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows
 	BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
+	// elog(LOG, "ASDSD");
 	if (invrows)
 	{
 		*invrows = 0;
