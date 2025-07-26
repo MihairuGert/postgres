@@ -80,7 +80,7 @@ InstrStartNode(Instrumentation *instr)
 
 	if (instr->need_walusage)
 		instr->walusage_start = pgWalUsage;
-
+	
 	instr->inv_rows_start = invRows;
 }
 
@@ -116,8 +116,6 @@ InstrStopNode(Instrumentation *instr, double nTuples)
 						  &pgWalUsage, &instr->walusage_start);
 
 	instr->inv_rows += invRows - instr->inv_rows_start;
-	//if (instr->inv_rows == 0)
-	//	elog(LOG, "%ld += %ld - %ld", instr->inv_rows, invRows, instr->inv_rows_start);
 
 	/* Is this the first tuple of this cycle? */
 	if (!instr->running)
@@ -223,7 +221,6 @@ InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows
 	BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
-	// elog(LOG, "ASDSD");
 	if (invrows)
 	{
 		*invrows = 0;

@@ -135,7 +135,7 @@ ExecInitGather(Gather *node, EState *estate, int eflags)
  */
 static TupleTableSlot *
 ExecGather(PlanState *pstate)
-{//elog(LOG, "i am inside execgather");
+{
 	GatherState *node = castNode(GatherState, pstate);
 	TupleTableSlot *slot;
 	ExprContext *econtext;
@@ -181,10 +181,10 @@ ExecGather(PlanState *pstate)
 			LaunchParallelWorkers(pcxt);
 			/* We save # workers launched for the benefit of EXPLAIN */
 			node->nworkers_launched = pcxt->nworkers_launched;
-//elog(LOG, "1.8.4.");
+
 			/* Set up tuple queue readers to read the results. */
 			if (pcxt->nworkers_launched > 0)
-			{//elog(LOG, "tryna start readers");
+			{
 				ExecParallelCreateReaders(node->pei);
 				/* Make a working array showing the active readers */
 				node->nreaders = pcxt->nworkers_launched;
@@ -201,7 +201,7 @@ ExecGather(PlanState *pstate)
 			}
 			node->nextreader = 0;
 		}
-//elog(LOG, "gonna run plan");
+
 		/* Run plan locally if no workers or enabled and not single-copy. */
 		node->need_to_scan_locally = (node->nreaders == 0)
 			|| (!gather->single_copy && parallel_leader_participation);
@@ -218,7 +218,7 @@ ExecGather(PlanState *pstate)
 	/*
 	 * Get next tuple, either from one of our workers, or by running the plan
 	 * ourselves.
-	 *///elog(LOG, "mmm next tuple");
+	 */
 	slot = gather_getnext(node);
 	if (TupIsNull(slot))
 		return NULL;
@@ -230,7 +230,7 @@ ExecGather(PlanState *pstate)
 	/*
 	 * Form the result tuple using ExecProject(), and return it.
 	 */
-	econtext->ecxt_outertuple = slot;//elog(LOG, "i am leaving");
+	econtext->ecxt_outertuple = slot;
 	return ExecProject(node->ps.ps_ProjInfo);
 }
 

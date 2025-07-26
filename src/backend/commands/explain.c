@@ -42,22 +42,13 @@
 #include "utils/typcache.h"
 #include "utils/xml.h"
 
-/* Struct containing TID hash table and invisible rows counter */
-struct InvisibleRowsData {
-	int64 inivisible_rows_count;
-};
-
-typedef struct InvisibleRowsData InvisibleRowsData;
-
 /* Hook for plugins to get control in ExplainOneQuery() */
 ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
 
 /* Hook for plugins to get control in explain_get_index_name() */
 explain_get_index_name_hook_type explain_get_index_name_hook = NULL;
 
-/* Hook to get control of HeapTupleSatisfiesMVCC() result */
-rows_invisibility_check_hook_type rows_invisibility_check_hook = NULL;
-static InvisibleRowsData invisible_rows_data; 
+/* GUC variable */
 bool track_invisible_rows = false;
 
 /* Instrumentation data for SERIALIZE option */
@@ -633,11 +624,9 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	QueryDesc  *queryDesc;
 	instr_time	starttime;
 	double		totaltime = 0;
-	uint64		inv_rows = 0;
 	int			eflags;
 	int			instrument_option = 0;
 	SerializeMetrics serializeMetrics = {0};
-	bool do_track_invisible_rows = false;
 
 	Assert(plannedstmt->commandType != CMD_UTILITY);
 
@@ -702,13 +691,6 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	if (es->analyze)
 	{
 		ScanDirection dir;
-
-		if (track_invisible_rows) 
-		{
-			rows_invisibility_check_hook = standard_CountInvisibleRows; 
-			invisible_rows_data.inivisible_rows_count = 0;
-			do_track_invisible_rows = true;
-		}
 
 		/* EXPLAIN ANALYZE CREATE TABLE AS WITH NO DATA is weird */
 		if (into && into->skipData)
@@ -814,14 +796,6 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 	{
 		ExplainPropertyFloat("Execution Time", "ms", 1000.0 * totaltime, 3,
 							 es);
-		if (do_track_invisible_rows) 
-		{
-			ExplainPropertyInteger("Invisible Rows", "", 
-									invisible_rows_data.inivisible_rows_count, es);
-
-			rows_invisibility_check_hook = NULL;
-			do_track_invisible_rows = false;
-		}
 	}
 	ExplainCloseGroup("Query", NULL, true, es);
 }
@@ -1901,15 +1875,18 @@ ExplainNode(PlanState *planstate, List *ancestors,
 		{
 			if (es->timing)
 				appendStringInfo(es->str,
-								 " (actual time=%.3f..%.3f rows=%.0f loops=%.0f)",
+								 " (actual time=%.3f..%.3f rows=%.0f loops=%.0f",
 								 startup_ms, total_ms, rows, nloops);
 			else
 				appendStringInfo(es->str,
-								 " (actual rows=%.0f loops=%.0f)",
+								 " (actual rows=%.0f loops=%.0f",
 								 rows, nloops);
-			appendStringInfo(es->str,
-							" (invisible rows=%ld)",
-							planstate->instrument->inv_rows);
+			if (track_invisible_rows)
+				appendStringInfo(es->str,
+								" invisible rows=%ld)",
+								planstate->instrument->inv_rows);
+			else
+				appendStringInfo(es->str, ")");
 		}
 		else
 		{
@@ -1979,21 +1956,23 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				{
 					if (planstate->instrument->running)
 						appendStringInfo(es->str,
-								" (Current loop: actual time=%.3f..%.3f rows=%.0f, loop number=%.0f)",
+								" (Current loop: actual time=%.3f..%.3f rows=%.0f, loop number=%.0f",
 								startup_sec, total_sec, rows, loop_num);
 					else
 						appendStringInfo(es->str,
-								" (Current loop: running time=%.3f actual rows=0, loop number=%.0f)",
+								" (Current loop: running time=%.3f actual rows=0, loop number=%.0f",
 								total_sec, loop_num);
 				}
 				else
 					appendStringInfo(es->str,
-							" (Current loop: actual rows=%.0f, loop number=%.0f)",
+							" (Current loop: actual rows=%.0f, loop number=%.0f",
 							rows, loop_num);
 				if (track_invisible_rows) 
 					appendStringInfo(es->str,
-							" (Current loop: invisible rows=%ld)",
+							", invisible rows=%ld)",
 							planstate->instrument->inv_rows);
+				else
+					appendStringInfo(es->str, ")");
 			}
 			else
 			{
@@ -5736,24 +5715,3 @@ GetSerializationMetrics(DestReceiver *dest)
 
 	return empty;
 }
-
-/*
- * Counts invisible rows.
- */
-void
-standard_CountInvisibleRows(HeapTuple htup, bool is_visible) 
-{	
-	if (!is_visible) 
-		invisible_rows_data.inivisible_rows_count++;
-}
-
-
-/*
- * Sets invisible rows count to zero.
- */
-void
-ResetInvisibleRowsCount() 
-{	
-	invisible_rows_data.inivisible_rows_count = 0;
-}
-

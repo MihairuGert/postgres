@@ -679,12 +679,13 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	shm_toc_estimate_chunk(&pcxt->estimator,
 						   mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
-
-	//elog(LOG, "GOODBYE MY FELLOWS");
+	
+	/*
+	 * Same thing for InvisibleRows.
+	 */
 	shm_toc_estimate_chunk(&pcxt->estimator,
 						   mul_size(sizeof(uint64), pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
-	//elog(LOG, "just kidding");
 
 	/* Estimate space for tuple queues. */
 	shm_toc_estimate_chunk(&pcxt->estimator,
@@ -746,7 +747,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	 * asked for has been allocated or initialized yet, though, so do that.
 	 */
 
-	/* Store fixed-size state. */ //elog(LOG, "MEOW MEOW MEOW");
+	/* Store fixed-size state. */ 
 	fpes = shm_toc_allocate(pcxt->toc, sizeof(FixedParallelExecutorState));
 	fpes->tuples_needed = tuples_needed;
 	fpes->param_exec = InvalidDsaPointer;
@@ -780,12 +781,12 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 									  mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_WAL_USAGE, walusage_space);
 	pei->wal_usage = walusage_space;
-	//elog(LOG, "goodbye i can't breath");
+
 	invrows_space = shm_toc_allocate(pcxt->toc,
 									  mul_size(sizeof(uint64), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_KEY_INV_ROWS, invrows_space);
 	pei->invrows_usage = invrows_space;
-	//elog(LOG, "BB");
+
 	/* Set up the tuple queues that the workers will write into. */
 	pei->tqueue = ExecParallelSetupTupleQueues(pcxt, false);
 
@@ -833,7 +834,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 	 * instead, then skip this.)
 	 */
 	if (pcxt->seg != NULL)
-	{//elog(LOG, "LEEEETS GOOO1");
+	{
 		char	   *area_space;
 
 		area_space = shm_toc_allocate(pcxt->toc, dsa_minsize);
@@ -855,7 +856,7 @@ ExecInitParallelPlan(PlanState *planstate, EState *estate,
 			fpes->param_exec = pei->param_exec;
 		}
 	}
-	//elog(LOG, "LEEEETS GOOO2");
+
 	/*
 	 * Give parallel-aware nodes a chance to initialize their shared data.
 	 * This also initializes the elements of instrumentation->ps_instrument,
@@ -1183,7 +1184,6 @@ ExecParallelFinish(ParallelExecutorInfo *pei)
 	 */
 	for (i = 0; i < nworkers; i++)
 	{
-		//elog(LOG, "goodbye my fellows InstrAccumParallelQuery");
 		InstrAccumParallelQuery(&pei->buffer_usage[i], &pei->wal_usage[i], &pei->invrows_usage[i]);
 	}
 	pei->finished = true;
@@ -1494,7 +1494,7 @@ ParallelQueryMain(dsm_segment *seg, shm_toc *toc)
 	buffer_usage = shm_toc_lookup(toc, PARALLEL_KEY_BUFFER_USAGE, false);
 	wal_usage = shm_toc_lookup(toc, PARALLEL_KEY_WAL_USAGE, false);
 	inv_rows = shm_toc_lookup(toc, PARALLEL_KEY_INV_ROWS, false);
-	//elog(LOG, "goodbye my fellows I InstrEndParallelQuery");
+
 	InstrEndParallelQuery(&buffer_usage[ParallelWorkerNumber],
 						  &wal_usage[ParallelWorkerNumber], 
 						  &inv_rows[ParallelWorkerNumber]);
