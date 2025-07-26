@@ -209,6 +209,8 @@ ExplainQuery(ParseState *pstate, ExplainStmt *stmt,
 			es->wal = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "settings") == 0)
 			es->settings = defGetBoolean(opt);
+		else if (strcmp(opt->defname, "inv_rows") == 0)
+			es->inv_rows = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "generic_plan") == 0)
 			es->generic = defGetBoolean(opt);
 		else if (strcmp(opt->defname, "timing") == 0)
@@ -639,6 +641,8 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		instrument_option |= INSTRUMENT_BUFFERS;
 	if (es->wal)
 		instrument_option |= INSTRUMENT_WAL;
+	if (es->inv_rows || track_invisible_rows)
+		instrument_option |= INSTRUMENT_INV_ROWS;
 
 	/*
 	 * We always collect timing for the entire statement, even when node-level
@@ -1881,7 +1885,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				appendStringInfo(es->str,
 								 " (actual rows=%.0f loops=%.0f",
 								 rows, nloops);
-			if (track_invisible_rows)
+			
+			if (es->inv_rows || track_invisible_rows)
 				appendStringInfo(es->str,
 								" invisible rows=%ld)",
 								planstate->instrument->inv_rows);
@@ -1899,7 +1904,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			}
 			ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
 			ExplainPropertyFloat("Actual Loops", NULL, nloops, 0, es);
-			ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
+			if (es->inv_rows || track_invisible_rows)
+				ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
 		}
 	}
 	else if (es->analyze && !es->runtime)
@@ -1967,7 +1973,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 					appendStringInfo(es->str,
 							" (Current loop: actual rows=%.0f, loop number=%.0f",
 							rows, loop_num);
-				if (track_invisible_rows) 
+				
+				if (es->inv_rows || track_invisible_rows)
 					appendStringInfo(es->str,
 							", invisible rows=%ld)",
 							planstate->instrument->inv_rows);
@@ -1988,8 +1995,10 @@ ExplainNode(PlanState *planstate, List *ancestors,
 						ExplainPropertyFloat("Running Time", NULL, total_sec, 3, es);
 				}
 				ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
-				if (track_invisible_rows)
-					ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
+				
+				if (es->inv_rows || track_invisible_rows)
+					ExplainPropertyInteger("Invisible Rows", NULL,
+											planstate->instrument->inv_rows, es);
 			}
 			ExplainCloseGroup("Current loop", "Current loop", true, es);
 		}

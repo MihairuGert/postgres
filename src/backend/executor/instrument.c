@@ -37,11 +37,12 @@ InstrAlloc(int n, int instrument_options, bool async_mode)
 
 	/* initialize all fields to zeroes, then modify as needed */
 	instr = palloc0(n * sizeof(Instrumentation));
-	if (instrument_options & (INSTRUMENT_BUFFERS | INSTRUMENT_TIMER | INSTRUMENT_WAL))
+	if (instrument_options & (INSTRUMENT_BUFFERS | INSTRUMENT_TIMER | INSTRUMENT_WAL | INSTRUMENT_INV_ROWS))
 	{
 		bool		need_buffers = (instrument_options & INSTRUMENT_BUFFERS) != 0;
 		bool		need_wal = (instrument_options & INSTRUMENT_WAL) != 0;
 		bool		need_timer = (instrument_options & INSTRUMENT_TIMER) != 0;
+		bool		need_inv_rows = (instrument_options & INSTRUMENT_INV_ROWS) != 0;
 		int			i;
 
 		for (i = 0; i < n; i++)
@@ -49,6 +50,7 @@ InstrAlloc(int n, int instrument_options, bool async_mode)
 			instr[i].need_bufusage = need_buffers;
 			instr[i].need_walusage = need_wal;
 			instr[i].need_timer = need_timer;
+			instr[i].need_inv_rows = need_inv_rows;
 			instr[i].async_mode = async_mode;
 		}
 	}
@@ -64,6 +66,7 @@ InstrInit(Instrumentation *instr, int instrument_options)
 	instr->need_bufusage = (instrument_options & INSTRUMENT_BUFFERS) != 0;
 	instr->need_walusage = (instrument_options & INSTRUMENT_WAL) != 0;
 	instr->need_timer = (instrument_options & INSTRUMENT_TIMER) != 0;
+	instr->need_inv_rows = (instrument_options & INSTRUMENT_INV_ROWS) != 0;
 }
 
 /* Entry to a plan node */
@@ -81,7 +84,8 @@ InstrStartNode(Instrumentation *instr)
 	if (instr->need_walusage)
 		instr->walusage_start = pgWalUsage;
 	
-	instr->inv_rows_start = invRows;
+	if (instr->need_inv_rows)
+		instr->inv_rows_start = invRows;
 }
 
 /* Exit from a plan node */
@@ -114,8 +118,9 @@ InstrStopNode(Instrumentation *instr, double nTuples)
 	if (instr->need_walusage)
 		WalUsageAccumDiff(&instr->walusage,
 						  &pgWalUsage, &instr->walusage_start);
-
-	instr->inv_rows += invRows - instr->inv_rows_start;
+	
+	if (instr->need_inv_rows)
+		instr->inv_rows += invRows - instr->inv_rows_start;
 
 	/* Is this the first tuple of this cycle? */
 	if (!instr->running)
@@ -201,7 +206,8 @@ InstrAggNode(Instrumentation *dst, Instrumentation *add)
 	if (dst->need_walusage)
 		WalUsageAdd(&dst->walusage, &add->walusage);
 
-	InvRowsAdd(&dst->inv_rows, &add->inv_rows);
+	if (dst->need_inv_rows)
+		InvRowsAdd(&dst->inv_rows, &add->inv_rows);
 }
 
 /* note current values during parallel executor startup */
