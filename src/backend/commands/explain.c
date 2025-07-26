@@ -292,6 +292,12 @@ ExplainQuery(ParseState *pstate, ExplainStmt *stmt,
 				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 				 errmsg("EXPLAIN option TIMING requires ANALYZE")));
 
+	/* check that inv_rows is used with EXPLAIN ANALYZE */
+	if (es->inv_rows && !es->analyze)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("EXPLAIN option INV_ROWS requires ANALYZE")));
+
 	/* check that serialize is used with EXPLAIN ANALYZE */
 	if (es->serialize != EXPLAIN_SERIALIZE_NONE && !es->analyze)
 		ereport(ERROR,
