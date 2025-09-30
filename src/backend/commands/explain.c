@@ -1986,6 +1986,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 							planstate->instrument->inv_rows);
 				else
 					appendStringInfo(es->str, ")");
+				elog(LOG, "%ld\n", planstate->instrument->inv_rows);
 			}
 			else
 			{
