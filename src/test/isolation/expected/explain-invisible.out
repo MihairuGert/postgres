@@ -1,0 +1,14 @@
+Parsed test spec with 2 sessions
+
+starting permutation: s2_begin s1_begin s1_update_row1 s2_explain s2_commit s1_commit
+step s2_begin: BEGIN;
+step s1_begin: BEGIN;
+step s1_update_row1: UPDATE test_invisible SET data = 'updated1' WHERE id = 1;
+step s2_explain: EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT * FROM test_invisible;
+QUERY PLAN                                                         
+-------------------------------------------------------------------
+Seq Scan on test_invisible (actual rows=2 loops=1 invisible rows=1)
+(1 row)
+
+step s2_commit: COMMIT;
+step s1_commit: COMMIT;
