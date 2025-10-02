@@ -14,6 +14,7 @@ teardown
 session "updater"
 step "s1_begin" { BEGIN; }
 step "s1_update_row1" { UPDATE test_invisible SET data = 'updated1' WHERE id = 1; }
+step "s1_delete_row1" { DELETE FROM test_invisible WHERE id = 1; }
 step "s1_commit" { COMMIT; }
 
 session "explainer"  
@@ -23,3 +24,7 @@ step "s2_commit" { COMMIT; }
 
 # Test Case 1: Explain sees updated row as invisible
 permutation "s2_begin" "s1_begin" "s1_update_row1" "s2_explain" "s2_commit" "s1_commit"
+
+# Test Case 2: Explain sees deleted row as invisible
+permutation "s2_begin" "s1_begin" "s1_delete_row1" "s2_explain" "s2_commit" "s1_commit"
+
