@@ -33,7 +33,7 @@ step "s2_begin" { BEGIN; }
 step "s2_explain" { EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT * FROM test_invisible_table_seq_scan; }
 step "s2_set_seqscan_and_bitmap_scan_off" { SET enable_seqscan = off; SET enable_bitmapscan = off; }
 step "s2_set_seqscan_and_bitmap_scan_on" { SET enable_seqscan = on; SET enable_bitmapscan = on; }
-step "s2_explain_bitmap_and_index" { EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT * FROM test_invisible_rows_bitmap_heap_and_index_scan WHERE id >= 6 AND id <= 6000 ORDER BY id; }
+step "s2_explain_bitmap_and_index" { EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT * FROM test_invisible_rows_bitmap_heap_and_index_scan WHERE id >= 1 AND id <= 6000; }
 step "s2_commit" { COMMIT; }
 
 # Test Case 1: Explain sees updated row as invisible
