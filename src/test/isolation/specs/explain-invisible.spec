@@ -14,12 +14,21 @@ setup
     CREATE INDEX idx_test_invisible_rows_covering ON test_invisible_rows_bitmap_heap_and_index_scan(id) INCLUDE (data);
 
     INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan VALUES (1, 'initial1'), (2, 'initial2');
+
+    CREATE TABLE p1 (c1 numeric);
+    CREATE TABLE p2 (c1 numeric);
+
+    INSERT INTO p1 SELECT 123 FROM generate_series(1,1000);
+    
+    INSERT INTO p2 SELECT 123 FROM generate_series(1,1000);
 }
 
 teardown
 {
     DROP TABLE test_invisible_table_seq_scan;
     DROP TABLE test_invisible_rows_bitmap_heap_and_index_scan;
+    DROP TABLE p1;
+    DROP TABLE p2;
 }
 
 session "updater"
@@ -32,6 +41,8 @@ step "s1_delete_row1" { DELETE FROM test_invisible_table_seq_scan WHERE id = 1; 
 step "s1_insert_row_index" { INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan VALUES (3, 'initial3'), (4, 'initial4'), (5, 'initial5'); }
 
 step "s1_insert_many_row_index" { INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan (id, data) SELECT i, 'initial' || i FROM generate_series(6, 10005) AS i; }
+
+step "s1_insert_many_rows_p1" { INSERT INTO p1 SELECT 123 FROM generate_series(1, 1000000); }
 
 step "s1_commit" { COMMIT; }
 
@@ -54,11 +65,9 @@ step "s2_explain_index_only_covering" { EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, T
 
 step "s2_explain_parallel_scan" { 
     SET max_parallel_workers_per_gather = 4;
-    EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT COUNT(*) FROM test_invisible_rows_bitmap_heap_and_index_scan as t1 join test_invisible_table_seq_scan as t2 on t1.id != t2.id; 
-    }
 
-step "s2_insert_many_rows" { INSERT INTO test_invisible_table_seq_scan (id, data) SELECT i, 'initial' || i FROM generate_series(20005, 21005) AS i; }
-step "s2_insert_many_rows_index" { INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan (id, data) SELECT i, 'initial' || i FROM generate_series(20005, 30005) AS i; }
+    EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT COUNT(*) FROM p1 join p2 on p1.c1 = p2.c1; 
+    }
 
 step "s2_commit" { COMMIT; }
 
@@ -78,5 +87,4 @@ permutation "s2_begin" "s1_begin" "s1_insert_many_row_index" "s2_set_seqscan_and
 permutation "s2_begin" "s1_begin" "s1_insert_many_row_index" "s2_set_seqscan_and_bitmap_scan_off" "s2_explain_index_only_covering" "s2_set_seqscan_and_bitmap_scan_on" "s2_commit" "s1_commit"
 
 # Test Case 8: Explain sees inserted rows as invisible in parallel seq scan
-permutation "s2_begin" "s1_begin" "s1_insert_many_row_index" "s2_insert_many_rows" "s2_insert_many_rows_index" "s2_explain_parallel_scan" "s2_commit" "s1_commit"
-
+permutation "s2_begin" "s1_begin" "s1_insert_many_rows_p1" "s2_explain_parallel_scan" "s2_commit" "s1_commit"
