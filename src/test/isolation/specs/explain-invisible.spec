@@ -2,11 +2,11 @@
 
 setup
 {
-    CREATE TABLE test_invisible_table_seq_scan (id int PRIMARY KEY, data text);
+    CREATE TABLE test_invisible_table_seq_scan (id numeric, data text);
     INSERT INTO test_invisible_table_seq_scan VALUES (1, 'initial1'), (2, 'initial2');
 
     CREATE TABLE test_invisible_rows_bitmap_heap_and_index_scan (
-        id SERIAL PRIMARY KEY,
+        id numeric,
         data TEXT
     );
     CREATE INDEX idx_test_invisible_rows_id ON test_invisible_rows_bitmap_heap_and_index_scan(id);
@@ -56,6 +56,7 @@ step "s2_explain_parallel_scan" {
     SET max_parallel_workers_per_gather = 4;
     EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT COUNT(*) FROM p1 join p2 on p1.c1 = p2.c1; 
     }
+step "s2_set_read_committed" { SET TRANSACTION ISOLATION LEVEL READ COMMITTED; }
 step "s2_commit" { COMMIT; }
 
 # Test Case 1: Explain sees updated row as invisible
@@ -75,3 +76,6 @@ permutation "s2_begin" "s1_begin" "s1_insert_many_row_index" "s2_set_seqscan_and
 
 # Test Case 8: Explain sees inserted rows as invisible in parallel seq scan
 permutation "s2_begin" "s1_begin" "s1_insert_many_rows_p1" "s2_explain_parallel_scan" "s2_commit" "s1_commit"
+
+# Test Case 9: Vacuum removes invisible rows
+permutation "s2_begin" "s2_set_read_committed" "s1_begin" "s1_insert_row_index" "s2_explain_bitmap_and_index" "s1_commit" "s2_explain_bitmap_and_index" "s2_commit" "s2_explain_bitmap_and_index"
