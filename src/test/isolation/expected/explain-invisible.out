@@ -36,24 +36,43 @@ QUERY PLAN
 Bitmap Heap Scan on test_invisible_rows_bitmap_heap_and_index_scan (actual rows=2 loops=1 invisible rows=3)
   Recheck Cond: ((id >= 1) AND (id <= 6000))                                                               
   Heap Blocks: exact=1                                                                                     
-  ->  Bitmap Index Scan on idx_test_invisible_rows_id (actual rows=5 loops=1 invisible rows=0)             
+  ->  Bitmap Index Scan on idx_test_invisible_rows_covering (actual rows=5 loops=1 invisible rows=0)       
         Index Cond: ((id >= 1) AND (id <= 6000))                                                           
 (5 rows)
 
 step s2_commit: COMMIT;
 step s1_commit: COMMIT;
 
-starting permutation: s2_begin s1_begin s1_insert_many_row_index s2_set_seqscan_and_bitmap_scan_off s2_explain_bitmap_and_index s2_set_seqscan_and_bitmap_scan_on s2_commit s1_commit
+starting permutation: s2_begin s1_begin s1_insert_many_row_index s2_set_seqscan_and_bitmap_scan_off s2_set_indexonly_scan_off s2_explain_bitmap_and_index s2_set_seqscan_and_bitmap_scan_on s2_set_indexonly_scan_on s2_commit s1_commit
 step s2_begin: BEGIN;
 step s1_begin: BEGIN;
 step s1_insert_many_row_index: INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan (id, data) SELECT i, 'initial' || i FROM generate_series(6, 10005) AS i;
 step s2_set_seqscan_and_bitmap_scan_off: SET enable_seqscan = off; SET enable_bitmapscan = off;
+step s2_set_indexonly_scan_off: SET enable_indexonlyscan = off;
 step s2_explain_bitmap_and_index: EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT * FROM test_invisible_rows_bitmap_heap_and_index_scan WHERE id >= 1 AND id <= 6000;
-QUERY PLAN                                                                                                                               
------------------------------------------------------------------------------------------------------------------------------------------
-Index Scan using idx_test_invisible_rows_id on test_invisible_rows_bitmap_heap_and_index_scan (actual rows=2 loops=1 invisible rows=5995)
-  Index Cond: ((id >= 1) AND (id <= 6000))                                                                                               
+QUERY PLAN                                                                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------
+Index Scan using idx_test_invisible_rows_covering on test_invisible_rows_bitmap_heap_and_index_scan (actual rows=2 loops=1 invisible rows=5995)
+  Index Cond: ((id >= 1) AND (id <= 6000))                                                                                                     
 (2 rows)
+
+step s2_set_seqscan_and_bitmap_scan_on: SET enable_seqscan = on; SET enable_bitmapscan = on;
+step s2_set_indexonly_scan_on: SET enable_indexonlyscan = on;
+step s2_commit: COMMIT;
+step s1_commit: COMMIT;
+
+starting permutation: s2_begin s1_begin s1_insert_many_row_index s2_set_seqscan_and_bitmap_scan_off s2_explain_index_only_covering s2_set_seqscan_and_bitmap_scan_on s2_commit s1_commit
+step s2_begin: BEGIN;
+step s1_begin: BEGIN;
+step s1_insert_many_row_index: INSERT INTO test_invisible_rows_bitmap_heap_and_index_scan (id, data) SELECT i, 'initial' || i FROM generate_series(6, 10005) AS i;
+step s2_set_seqscan_and_bitmap_scan_off: SET enable_seqscan = off; SET enable_bitmapscan = off;
+step s2_explain_index_only_covering: EXPLAIN (ANALYZE, INV_ROWS, COSTS OFF, TIMING OFF, SUMMARY OFF) SELECT id, data FROM test_invisible_rows_bitmap_heap_and_index_scan WHERE id >= 1 AND id <= 6000;
+QUERY PLAN                                                                                                                                          
+----------------------------------------------------------------------------------------------------------------------------------------------------
+Index Only Scan using idx_test_invisible_rows_covering on test_invisible_rows_bitmap_heap_and_index_scan (actual rows=2 loops=1 invisible rows=5995)
+  Index Cond: ((id >= 1) AND (id <= 6000))                                                                                                          
+  Heap Fetches: 5997                                                                                                                                
+(3 rows)
 
 step s2_set_seqscan_and_bitmap_scan_on: SET enable_seqscan = on; SET enable_bitmapscan = on;
 step s2_commit: COMMIT;
