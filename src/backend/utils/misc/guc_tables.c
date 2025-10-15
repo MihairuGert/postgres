@@ -1426,15 +1426,6 @@ struct config_bool ConfigureNamesBool[] =
 		false,
 		NULL, NULL, NULL
 	},
-	{
-		{"track_invisible_rows", PGC_SUSET, STATS_CUMULATIVE,
-			gettext_noop("Activates invisible rows counter."),
-			NULL
-		},
-		&track_invisible_rows,
-		false,
-		NULL, NULL, NULL
-	},
 
 	{
 		{"update_process_title", PGC_SUSET, PROCESS_TITLE,

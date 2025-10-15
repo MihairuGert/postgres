@@ -48,9 +48,6 @@ ExplainOneQuery_hook_type ExplainOneQuery_hook = NULL;
 /* Hook for plugins to get control in explain_get_index_name() */
 explain_get_index_name_hook_type explain_get_index_name_hook = NULL;
 
-/* GUC variable */
-bool track_invisible_rows = false;
-
 /* Instrumentation data for SERIALIZE option */
 typedef struct SerializeMetrics
 {
@@ -647,7 +644,7 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		instrument_option |= INSTRUMENT_BUFFERS;
 	if (es->wal)
 		instrument_option |= INSTRUMENT_WAL;
-	if (es->inv_rows || track_invisible_rows)
+	if (es->inv_rows)
 		instrument_option |= INSTRUMENT_INV_ROWS;
 
 	/*
@@ -1892,7 +1889,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 								 " (actual rows=%.0f loops=%.0f",
 								 rows, nloops);
 			
-			if (es->inv_rows || track_invisible_rows)
+			if (es->inv_rows)
 				appendStringInfo(es->str,
 								" invisible rows=%ld)",
 								planstate->instrument->inv_rows);
@@ -1910,7 +1907,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			}
 			ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
 			ExplainPropertyFloat("Actual Loops", NULL, nloops, 0, es);
-			if (es->inv_rows || track_invisible_rows)
+			if (es->inv_rows)
 				ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->inv_rows, es);
 		}
 	}
@@ -1980,7 +1977,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 							" (Current loop: actual rows=%.0f, loop number=%.0f",
 							rows, loop_num);
 				
-				if (es->inv_rows || track_invisible_rows)
+				if (es->inv_rows)
 					appendStringInfo(es->str,
 							", invisible rows=%ld)",
 							planstate->instrument->inv_rows);
@@ -2002,7 +1999,7 @@ ExplainNode(PlanState *planstate, List *ancestors,
 				}
 				ExplainPropertyFloat("Actual Rows", NULL, rows, 0, es);
 				
-				if (es->inv_rows || track_invisible_rows)
+				if (es->inv_rows)
 					ExplainPropertyInteger("Invisible Rows", NULL,
 											planstate->instrument->inv_rows, es);
 			}
