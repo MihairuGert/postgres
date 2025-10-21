@@ -1903,7 +1903,8 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 			}
 		}
 		values[i++] = Int64GetDatumFast(tmp.rows);
-		values[i++] = Int64GetDatumFast(tmp.inv_rows);
+		if (api_version >= PGSS_V1_11)
+			values[i++] = Int64GetDatumFast(tmp.inv_rows);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_hit);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_read);
 		if (api_version >= PGSS_V1_1)

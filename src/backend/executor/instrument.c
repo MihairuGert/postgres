@@ -227,11 +227,8 @@ InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invrows
 	BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
-	if (invrows)
-	{
-		*invrows = 0;
-		*invrows += invRows - save_invRows;
-	}
+	*invrows = 0;
+	*invrows += invRows - save_invRows;
 }
 
 /* accumulate work done by workers in leader's stats */
@@ -240,8 +237,7 @@ InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage, uint64 *invro
 {
 	BufferUsageAdd(&pgBufferUsage, bufusage);
 	WalUsageAdd(&pgWalUsage, walusage);
-	if (invrows)
-		InvRowsAdd(&invRows, invrows);
+	InvRowsAdd(&invRows, invrows);
 }
 
 /* dst += add */

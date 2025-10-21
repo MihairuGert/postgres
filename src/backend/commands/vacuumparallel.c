@@ -49,6 +49,7 @@
 #define PARALLEL_VACUUM_KEY_BUFFER_USAGE	3
 #define PARALLEL_VACUUM_KEY_WAL_USAGE		4
 #define PARALLEL_VACUUM_KEY_INDEX_STATS		5
+#define PARALLEL_VACUUM_KEY_INV_ROWS		6
 
 /*
  * Shared information among parallel workers.  So this is allocated in the DSM
@@ -192,6 +193,9 @@ struct ParallelVacuumState
 	/* Points to WAL usage area in DSM */
 	WalUsage   *wal_usage;
 
+	/* Points to invisible rows area in DSM */
+	uint64   *inv_rows;
+
 	/*
 	 * False if the index is totally unsuitable target for all parallel
 	 * processing. For example, the index could be <
@@ -250,6 +254,7 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 	PVIndStats *indstats;
 	BufferUsage *buffer_usage;
 	WalUsage   *wal_usage;
+	uint64		*inv_rows;
 	bool	   *will_parallel_vacuum;
 	Size		est_indstats_len;
 	Size		est_shared_len;
@@ -302,8 +307,9 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 	/*
-	 * Estimate space for BufferUsage and WalUsage --
-	 * PARALLEL_VACUUM_KEY_BUFFER_USAGE and PARALLEL_VACUUM_KEY_WAL_USAGE.
+	 * Estimate space for BufferUsage,WalUsage and invisible rows --
+	 * PARALLEL_VACUUM_KEY_BUFFER_USAGE, PARALLEL_VACUUM_KEY_WAL_USAGE
+	 * PARALLEL_VACUUM_KEY_INV_ROWS.
 	 *
 	 * If there are no extensions loaded that care, we could skip this.  We
 	 * have no way of knowing whether anyone's looking at pgBufferUsage or
@@ -314,6 +320,9 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 	shm_toc_estimate_chunk(&pcxt->estimator,
 						   mul_size(sizeof(WalUsage), pcxt->nworkers));
+	shm_toc_estimate_keys(&pcxt->estimator, 1);
+	shm_toc_estimate_chunk(&pcxt->estimator,
+						   mul_size(sizeof(uint64), pcxt->nworkers));
 	shm_toc_estimate_keys(&pcxt->estimator, 1);
 
 	/* Finally, estimate PARALLEL_VACUUM_KEY_QUERY_TEXT space */
@@ -393,8 +402,8 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 	pvs->shared = shared;
 
 	/*
-	 * Allocate space for each worker's BufferUsage and WalUsage; no need to
-	 * initialize
+	 * Allocate space for each worker's BufferUsage, WalUsage and invisible rows count; 
+	 * no need to initialize
 	 */
 	buffer_usage = shm_toc_allocate(pcxt->toc,
 									mul_size(sizeof(BufferUsage), pcxt->nworkers));
@@ -404,6 +413,10 @@ parallel_vacuum_init(Relation rel, Relation *indrels, int nindexes,
 								 mul_size(sizeof(WalUsage), pcxt->nworkers));
 	shm_toc_insert(pcxt->toc, PARALLEL_VACUUM_KEY_WAL_USAGE, wal_usage);
 	pvs->wal_usage = wal_usage;
+	inv_rows = shm_toc_allocate(pcxt->toc,
+								 mul_size(sizeof(uint64), pcxt->nworkers));
+	shm_toc_insert(pcxt->toc, PARALLEL_VACUUM_KEY_INV_ROWS, inv_rows);
+	pvs->inv_rows = inv_rows;
 
 	/* Store query string for workers */
 	if (debug_query_string)
@@ -735,7 +748,7 @@ parallel_vacuum_process_all_indexes(ParallelVacuumState *pvs, int num_index_scan
 		WaitForParallelWorkersToFinish(pvs->pcxt);
 
 		for (int i = 0; i < pvs->pcxt->nworkers_launched; i++)
-			InstrAccumParallelQuery(&pvs->buffer_usage[i], &pvs->wal_usage[i], NULL);
+			InstrAccumParallelQuery(&pvs->buffer_usage[i], &pvs->wal_usage[i], &pvs->inv_rows[i]);
 	}
 
 	/*
@@ -994,6 +1007,7 @@ parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
 	TidStore   *dead_items;
 	BufferUsage *buffer_usage;
 	WalUsage   *wal_usage;
+	uint64		*inv_rows;
 	int			nindexes;
 	char	   *sharedquery;
 	ErrorContextCallback errcallback;
@@ -1082,8 +1096,11 @@ parallel_vacuum_main(dsm_segment *seg, shm_toc *toc)
 	/* Report buffer/WAL usage during parallel execution */
 	buffer_usage = shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_BUFFER_USAGE, false);
 	wal_usage = shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_WAL_USAGE, false);
+	inv_rows = shm_toc_lookup(toc, PARALLEL_VACUUM_KEY_INV_ROWS, false);
+
 	InstrEndParallelQuery(&buffer_usage[ParallelWorkerNumber],
-						  &wal_usage[ParallelWorkerNumber], NULL);
+						  &wal_usage[ParallelWorkerNumber], 
+						  &inv_rows[ParallelWorkerNumber]);
 
 	TidStoreDetach(dead_items);
 
