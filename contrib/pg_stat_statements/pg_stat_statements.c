@@ -164,6 +164,7 @@ typedef struct Counters
 	double		sum_var_time[PGSS_NUMKIND]; /* sum of variances in
 											 * planning/execution time in msec */
 	int64		rows;			/* total # of retrieved or affected rows */
+	int64		inv_rows;		/* total # of MVCC invisisble rows */
 	int64		shared_blks_hit;	/* # of shared buffer hits */
 	int64		shared_blks_read;	/* # of shared disk blocks read */
 	int64		shared_blks_dirtied;	/* # of shared disk blocks dirtied */
@@ -345,6 +346,7 @@ static void pgss_store(const char *query, uint64 queryId,
 					   int query_location, int query_len,
 					   pgssStoreKind kind,
 					   double total_time, uint64 rows,
+					   const uint64 inv_rows,
 					   const BufferUsage *bufusage,
 					   const WalUsage *walusage,
 					   const struct JitInstrumentation *jitusage,
@@ -865,6 +867,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   PGSS_INVALID,
 				   0,
 				   0,
+				   0,
 				   NULL,
 				   NULL,
 				   NULL,
@@ -894,10 +897,14 @@ pgss_planner(Query *parse,
 	{
 		instr_time	start;
 		instr_time	duration;
+		uint64		inv_rows_start,
+					inv_rows;
 		BufferUsage bufusage_start,
 					bufusage;
 		WalUsage	walusage_start,
 					walusage;
+
+		inv_rows_start = invRows;
 
 		/* We need to track buffer usage as the planner can access them. */
 		bufusage_start = pgBufferUsage;
@@ -928,6 +935,8 @@ pgss_planner(Query *parse,
 		INSTR_TIME_SET_CURRENT(duration);
 		INSTR_TIME_SUBTRACT(duration, start);
 
+		inv_rows = invRows - inv_rows_start;
+
 		/* calc differences of buffer counters. */
 		memset(&bufusage, 0, sizeof(BufferUsage));
 		BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
@@ -943,6 +952,7 @@ pgss_planner(Query *parse,
 				   PGSS_PLAN,
 				   INSTR_TIME_GET_MILLISEC(duration),
 				   0,
+				   inv_rows,
 				   &bufusage,
 				   &walusage,
 				   NULL,
@@ -1076,6 +1086,7 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   PGSS_EXEC,
 				   queryDesc->totaltime->total * 1000.0,	/* convert to msec */
 				   queryDesc->estate->es_total_processed,
+				   queryDesc->totaltime->inv_rows,
 				   &queryDesc->totaltime->bufusage,
 				   &queryDesc->totaltime->walusage,
 				   queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL,
@@ -1141,6 +1152,8 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 		instr_time	start;
 		instr_time	duration;
 		uint64		rows;
+		uint64		inv_rows_start,
+					inv_rows;
 		BufferUsage bufusage_start,
 					bufusage;
 		WalUsage	walusage_start,
@@ -1148,6 +1161,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 
 		bufusage_start = pgBufferUsage;
 		walusage_start = pgWalUsage;
+		inv_rows_start = invRows;
 		INSTR_TIME_SET_CURRENT(start);
 
 		nesting_level++;
@@ -1192,6 +1206,8 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 					   qc->commandTag == CMDTAG_REFRESH_MATERIALIZED_VIEW)) ?
 			qc->nprocessed : 0;
 
+		inv_rows = invRows - inv_rows_start;
+
 		/* calc differences of buffer counters. */
 		memset(&bufusage, 0, sizeof(BufferUsage));
 		BufferUsageAccumDiff(&bufusage, &pgBufferUsage, &bufusage_start);
@@ -1207,6 +1223,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   PGSS_EXEC,
 				   INSTR_TIME_GET_MILLISEC(duration),
 				   rows,
+				   inv_rows,
 				   &bufusage,
 				   &walusage,
 				   NULL,
@@ -1268,6 +1285,7 @@ pgss_store(const char *query, uint64 queryId,
 		   int query_location, int query_len,
 		   pgssStoreKind kind,
 		   double total_time, uint64 rows,
+		   const uint64	inv_rows,
 		   const BufferUsage *bufusage,
 		   const WalUsage *walusage,
 		   const struct JitInstrumentation *jitusage,
@@ -1433,6 +1451,7 @@ pgss_store(const char *query, uint64 queryId,
 					e->counters.max_time[kind] = total_time;
 			}
 		}
+		e->counters.inv_rows += inv_rows;
 		e->counters.rows += rows;
 		e->counters.shared_blks_hit += bufusage->shared_blks_hit;
 		e->counters.shared_blks_read += bufusage->shared_blks_read;
@@ -1541,8 +1560,8 @@ pg_stat_statements_reset(PG_FUNCTION_ARGS)
 #define PG_STAT_STATEMENTS_COLS_V1_8	32
 #define PG_STAT_STATEMENTS_COLS_V1_9	33
 #define PG_STAT_STATEMENTS_COLS_V1_10	43
-#define PG_STAT_STATEMENTS_COLS_V1_11	49
-#define PG_STAT_STATEMENTS_COLS			49	/* maximum of above */
+#define PG_STAT_STATEMENTS_COLS_V1_11	50
+#define PG_STAT_STATEMENTS_COLS			50	/* maximum of above */
 
 /*
  * Retrieve statement statistics.
@@ -1884,6 +1903,7 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 			}
 		}
 		values[i++] = Int64GetDatumFast(tmp.rows);
+		values[i++] = Int64GetDatumFast(tmp.inv_rows);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_hit);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_read);
 		if (api_version >= PGSS_V1_1)
