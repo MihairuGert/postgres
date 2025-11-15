@@ -159,6 +159,8 @@ ParseExplainOptionList(ExplainState *es, List *options, ParseState *pstate)
 								opt->defname, p),
 						 parser_errposition(pstate, opt->location)));
 		}
+		else if (strcmp(opt->defname, "inv_rows") == 0)
+			es->inv_rows = defGetBoolean(opt);
 		else if (!ApplyExtensionExplainOption(es, opt, pstate))
 			ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
@@ -203,6 +205,12 @@ ParseExplainOptionList(ExplainState *es, List *options, ParseState *pstate)
 	/* plugin specific option validation */
 	if (explain_validate_options_hook)
 		(*explain_validate_options_hook) (es, options, pstate);
+
+	/* check that inv_rows is used with EXPLAIN ANALYZE */
+	if (es->inv_rows && !es->analyze)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("EXPLAIN option INV_ROWS requires ANALYZE")));
 }
 
 /*

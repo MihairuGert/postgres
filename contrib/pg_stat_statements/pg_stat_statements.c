@@ -165,6 +165,7 @@ typedef struct Counters
 	double		sum_var_time[PGSS_NUMKIND]; /* sum of variances in
 											 * planning/execution time in msec */
 	int64		rows;			/* total # of retrieved or affected rows */
+	int64		inv_rows;		/* total # of MVCC invisisble rows */
 	int64		shared_blks_hit;	/* # of shared buffer hits */
 	int64		shared_blks_read;	/* # of shared disk blocks read */
 	int64		shared_blks_dirtied;	/* # of shared disk blocks dirtied */
@@ -350,6 +351,7 @@ static void pgss_store(const char *query, int64 queryId,
 					   int query_location, int query_len,
 					   pgssStoreKind kind,
 					   double total_time, uint64 rows,
+					   const InvRowsUsage *invrowsusage,
 					   const BufferUsage *bufusage,
 					   const WalUsage *walusage,
 					   const struct JitInstrumentation *jitusage,
@@ -875,6 +877,7 @@ pgss_post_parse_analyze(ParseState *pstate, Query *query, JumbleState *jstate)
 				   NULL,
 				   NULL,
 				   NULL,
+				   NULL,
 				   jstate,
 				   0,
 				   0);
@@ -907,6 +910,8 @@ pgss_planner(Query *parse,
 					bufusage;
 		WalUsage	walusage_start,
 					walusage;
+		InvRowsUsage invrowsusage_start,
+					invrowsusage;
 
 		/* We need to track buffer usage as the planner can access them. */
 		bufusage_start = pgBufferUsage;
@@ -917,6 +922,12 @@ pgss_planner(Query *parse,
 		 */
 		walusage_start = pgWalUsage;
 		INSTR_TIME_SET_CURRENT(start);
+
+		/*
+		 * We need to track invisible rows usage as the planner can access
+		 * them.
+		 */
+		invrowsusage_start = pgInvRowsUsage;
 
 		nesting_level++;
 		PG_TRY();
@@ -945,6 +956,10 @@ pgss_planner(Query *parse,
 		memset(&walusage, 0, sizeof(WalUsage));
 		WalUsageAccumDiff(&walusage, &pgWalUsage, &walusage_start);
 
+		/* calc differences of invisible rows counters. */
+		memset(&invrowsusage, 0, sizeof(InvRowsUsage));
+		InvRowsAccumDiff(&invrowsusage, &pgInvRowsUsage, &invrowsusage_start);
+
 		pgss_store(query_string,
 				   parse->queryId,
 				   parse->stmt_location,
@@ -952,6 +967,7 @@ pgss_planner(Query *parse,
 				   PGSS_PLAN,
 				   INSTR_TIME_GET_MILLISEC(duration),
 				   0,
+				   &invrowsusage,
 				   &bufusage,
 				   &walusage,
 				   NULL,
@@ -1086,6 +1102,7 @@ pgss_ExecutorEnd(QueryDesc *queryDesc)
 				   PGSS_EXEC,
 				   queryDesc->totaltime->total * 1000.0,	/* convert to msec */
 				   queryDesc->estate->es_total_processed,
+				   &queryDesc->totaltime->invrowsusage,
 				   &queryDesc->totaltime->bufusage,
 				   &queryDesc->totaltime->walusage,
 				   queryDesc->estate->es_jit ? &queryDesc->estate->es_jit->instr : NULL,
@@ -1157,9 +1174,12 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 					bufusage;
 		WalUsage	walusage_start,
 					walusage;
+		InvRowsUsage invrowsusage_start,
+					invrowsusage;
 
 		bufusage_start = pgBufferUsage;
 		walusage_start = pgWalUsage;
+		invrowsusage_start = pgInvRowsUsage;
 		INSTR_TIME_SET_CURRENT(start);
 
 		nesting_level++;
@@ -1212,6 +1232,10 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 		memset(&walusage, 0, sizeof(WalUsage));
 		WalUsageAccumDiff(&walusage, &pgWalUsage, &walusage_start);
 
+		/* calc differences of invisible rows counters. */
+		memset(&invrowsusage, 0, sizeof(InvRowsUsage));
+		InvRowsAccumDiff(&invrowsusage, &pgInvRowsUsage, &invrowsusage_start);
+
 		pgss_store(queryString,
 				   saved_queryId,
 				   saved_stmt_location,
@@ -1219,6 +1243,7 @@ pgss_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 				   PGSS_EXEC,
 				   INSTR_TIME_GET_MILLISEC(duration),
 				   rows,
+				   &invrowsusage,
 				   &bufusage,
 				   &walusage,
 				   NULL,
@@ -1282,6 +1307,7 @@ pgss_store(const char *query, int64 queryId,
 		   int query_location, int query_len,
 		   pgssStoreKind kind,
 		   double total_time, uint64 rows,
+		   const InvRowsUsage *invrowsusage,
 		   const BufferUsage *bufusage,
 		   const WalUsage *walusage,
 		   const struct JitInstrumentation *jitusage,
@@ -1447,6 +1473,7 @@ pgss_store(const char *query, int64 queryId,
 					entry->counters.max_time[kind] = total_time;
 			}
 		}
+		entry->counters.inv_rows += invrowsusage->inv_rows;
 		entry->counters.rows += rows;
 		entry->counters.shared_blks_hit += bufusage->shared_blks_hit;
 		entry->counters.shared_blks_read += bufusage->shared_blks_read;
@@ -1561,8 +1588,8 @@ pg_stat_statements_reset(PG_FUNCTION_ARGS)
 #define PG_STAT_STATEMENTS_COLS_V1_9	33
 #define PG_STAT_STATEMENTS_COLS_V1_10	43
 #define PG_STAT_STATEMENTS_COLS_V1_11	49
-#define PG_STAT_STATEMENTS_COLS_V1_12	52
-#define PG_STAT_STATEMENTS_COLS			52	/* maximum of above */
+#define PG_STAT_STATEMENTS_COLS_V1_12	53
+#define PG_STAT_STATEMENTS_COLS			53	/* maximum of above */
 
 /*
  * Retrieve statement statistics.
@@ -1915,6 +1942,8 @@ pg_stat_statements_internal(FunctionCallInfo fcinfo,
 			}
 		}
 		values[i++] = Int64GetDatumFast(tmp.rows);
+		if (api_version >= PGSS_V1_12)
+			values[i++] = Int64GetDatumFast(tmp.inv_rows);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_hit);
 		values[i++] = Int64GetDatumFast(tmp.shared_blks_read);
 		if (api_version >= PGSS_V1_1)

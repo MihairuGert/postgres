@@ -4335,3 +4335,4 @@ yyscan_t
 z_stream
 z_streamp
 zic_t
+InvRowsUsage

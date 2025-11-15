@@ -46,6 +46,7 @@ EXPLAIN [ ( <replaceable class="parameter">option</replaceable> [, ...] ) ] <rep
     TIMING [ <replaceable class="parameter">boolean</replaceable> ]
     SUMMARY [ <replaceable class="parameter">boolean</replaceable> ]
     MEMORY [ <replaceable class="parameter">boolean</replaceable> ]
+    INV_ROWS [ <replaceable class="parameter">boolean</replaceable> ]
     FORMAT { TEXT | XML | JSON | YAML }
 </synopsis>
  </refsynopsisdiv>
@@ -289,6 +290,17 @@ ROLLBACK;
       Specifically, include the precise amount of storage used by planner
       in-memory structures, as well as total memory considering allocation
       overhead.
+      This parameter defaults to <literal>FALSE</literal>.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><literal>INV_ROWS</literal></term>
+    <listitem>
+     <para>
+      Include information on how many times invisible (to the current snapshot) 
+      rows were accessed in each node in the output.
       This parameter defaults to <literal>FALSE</literal>.
      </para>
     </listitem>

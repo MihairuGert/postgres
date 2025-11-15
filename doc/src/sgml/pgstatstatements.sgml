@@ -259,6 +259,16 @@
 
      <row>
       <entry role="catalog_table_entry"><para role="column_definition">
+       <structfield>inv_rows</structfield> <type>bigint</type>
+      </para>
+      <para>
+       Total number of times invisible (to the current snapshot) rows 
+       were accessed.
+      </para></entry>
+     </row>
+
+     <row>
+      <entry role="catalog_table_entry"><para role="column_definition">
        <structfield>shared_blks_hit</structfield> <type>bigint</type>
       </para>
       <para>

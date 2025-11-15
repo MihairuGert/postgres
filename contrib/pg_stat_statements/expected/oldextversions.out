@@ -366,6 +366,7 @@ AlTER EXTENSION pg_stat_statements UPDATE TO '1.12';
  mean_exec_time             | double precision         |           |          | 
  stddev_exec_time           | double precision         |           |          | 
  rows                       | bigint                   |           |          | 
+ inv_rows                   | bigint                   |           |          | 
  shared_blks_hit            | bigint                   |           |          | 
  shared_blks_read           | bigint                   |           |          | 
  shared_blks_dirtied        | bigint                   |           |          | 
