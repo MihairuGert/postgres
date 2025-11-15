@@ -516,6 +516,8 @@ ExplainOnePlan(PlannedStmt *plannedstmt, IntoClause *into, ExplainState *es,
 		instrument_option |= INSTRUMENT_BUFFERS;
 	if (es->wal)
 		instrument_option |= INSTRUMENT_WAL;
+	if (es->inv_rows)
+		instrument_option |= INSTRUMENT_INV_ROWS;
 
 	/*
 	 * We always collect timing for the entire statement, even when node-level
@@ -1841,6 +1843,9 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			if (es->timing)
 				appendStringInfo(es->str, "time=%.3f..%.3f ", startup_ms, total_ms);
 
+			if (es->inv_rows)
+				appendStringInfo(es->str, "invisible rows=%ld ", planstate->instrument->invrowsusage.inv_rows);
+
 			appendStringInfo(es->str, "rows=%.2f loops=%.0f)", rows, nloops);
 		}
 		else
@@ -1854,6 +1859,8 @@ ExplainNode(PlanState *planstate, List *ancestors,
 			}
 			ExplainPropertyFloat("Actual Rows", NULL, rows, 2, es);
 			ExplainPropertyFloat("Actual Loops", NULL, nloops, 0, es);
+			if (es->inv_rows)
+				ExplainPropertyInteger("Invisible Rows", NULL, planstate->instrument->invrowsusage.inv_rows, es);
 		}
 	}
 	else if (es->analyze)

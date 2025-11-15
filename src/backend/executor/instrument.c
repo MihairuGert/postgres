@@ -21,9 +21,12 @@ BufferUsage pgBufferUsage;
 static BufferUsage save_pgBufferUsage;
 WalUsage	pgWalUsage;
 static WalUsage save_pgWalUsage;
+InvRowsUsage pgInvRowsUsage;
+static InvRowsUsage save_pgInvRowsUsage;
 
 static void BufferUsageAdd(BufferUsage *dst, const BufferUsage *add);
 static void WalUsageAdd(WalUsage *dst, WalUsage *add);
+static void InvRowsUsageAdd(InvRowsUsage *dst, InvRowsUsage *add);
 
 
 /* Allocate new instrumentation structure(s) */
@@ -34,11 +37,12 @@ InstrAlloc(int n, int instrument_options, bool async_mode)
 
 	/* initialize all fields to zeroes, then modify as needed */
 	instr = palloc0(n * sizeof(Instrumentation));
-	if (instrument_options & (INSTRUMENT_BUFFERS | INSTRUMENT_TIMER | INSTRUMENT_WAL))
+	if (instrument_options & (INSTRUMENT_BUFFERS | INSTRUMENT_TIMER | INSTRUMENT_WAL | INSTRUMENT_INV_ROWS))
 	{
 		bool		need_buffers = (instrument_options & INSTRUMENT_BUFFERS) != 0;
 		bool		need_wal = (instrument_options & INSTRUMENT_WAL) != 0;
 		bool		need_timer = (instrument_options & INSTRUMENT_TIMER) != 0;
+		bool		need_invrowsusage = (instrument_options & INSTRUMENT_INV_ROWS) != 0;
 		int			i;
 
 		for (i = 0; i < n; i++)
@@ -46,6 +50,7 @@ InstrAlloc(int n, int instrument_options, bool async_mode)
 			instr[i].need_bufusage = need_buffers;
 			instr[i].need_walusage = need_wal;
 			instr[i].need_timer = need_timer;
+			instr[i].need_invrowsusage = need_invrowsusage;
 			instr[i].async_mode = async_mode;
 		}
 	}
@@ -61,6 +66,7 @@ InstrInit(Instrumentation *instr, int instrument_options)
 	instr->need_bufusage = (instrument_options & INSTRUMENT_BUFFERS) != 0;
 	instr->need_walusage = (instrument_options & INSTRUMENT_WAL) != 0;
 	instr->need_timer = (instrument_options & INSTRUMENT_TIMER) != 0;
+	instr->need_invrowsusage = (instrument_options & INSTRUMENT_INV_ROWS) != 0;
 }
 
 /* Entry to a plan node */
@@ -77,6 +83,9 @@ InstrStartNode(Instrumentation *instr)
 
 	if (instr->need_walusage)
 		instr->walusage_start = pgWalUsage;
+
+	if (instr->need_invrowsusage)
+		instr->invrowsusage_start = pgInvRowsUsage;
 }
 
 /* Exit from a plan node */
@@ -109,6 +118,10 @@ InstrStopNode(Instrumentation *instr, double nTuples)
 	if (instr->need_walusage)
 		WalUsageAccumDiff(&instr->walusage,
 						  &pgWalUsage, &instr->walusage_start);
+
+	if (instr->need_invrowsusage)
+		InvRowsAccumDiff(&instr->invrowsusage,
+						 &pgInvRowsUsage, &instr->invrowsusage_start);
 
 	/* Is this the first tuple of this cycle? */
 	if (!instr->running)
@@ -193,6 +206,9 @@ InstrAggNode(Instrumentation *dst, Instrumentation *add)
 
 	if (dst->need_walusage)
 		WalUsageAdd(&dst->walusage, &add->walusage);
+
+	if (dst->need_invrowsusage)
+		InvRowsUsageAdd(&dst->invrowsusage, &add->invrowsusage);
 }
 
 /* note current values during parallel executor startup */
@@ -201,24 +217,28 @@ InstrStartParallelQuery(void)
 {
 	save_pgBufferUsage = pgBufferUsage;
 	save_pgWalUsage = pgWalUsage;
+	save_pgInvRowsUsage = pgInvRowsUsage;
 }
 
 /* report usage after parallel executor shutdown */
 void
-InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
+InstrEndParallelQuery(BufferUsage *bufusage, WalUsage *walusage, InvRowsUsage *invrowsusage)
 {
 	memset(bufusage, 0, sizeof(BufferUsage));
 	BufferUsageAccumDiff(bufusage, &pgBufferUsage, &save_pgBufferUsage);
 	memset(walusage, 0, sizeof(WalUsage));
 	WalUsageAccumDiff(walusage, &pgWalUsage, &save_pgWalUsage);
+	memset(invrowsusage, 0, sizeof(InvRowsUsage));
+	InvRowsAccumDiff(invrowsusage, &pgInvRowsUsage, &save_pgInvRowsUsage);
 }
 
 /* accumulate work done by workers in leader's stats */
 void
-InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage)
+InstrAccumParallelQuery(BufferUsage *bufusage, WalUsage *walusage, InvRowsUsage *invrowsusage)
 {
 	BufferUsageAdd(&pgBufferUsage, bufusage);
 	WalUsageAdd(&pgWalUsage, walusage);
+	InvRowsUsageAdd(&pgInvRowsUsage, invrowsusage);
 }
 
 /* dst += add */
@@ -290,4 +310,17 @@ WalUsageAccumDiff(WalUsage *dst, const WalUsage *add, const WalUsage *sub)
 	dst->wal_records += add->wal_records - sub->wal_records;
 	dst->wal_fpi += add->wal_fpi - sub->wal_fpi;
 	dst->wal_buffers_full += add->wal_buffers_full - sub->wal_buffers_full;
+}
+
+/* helper functions for invisible rows usage accumulation */
+static void
+InvRowsUsageAdd(InvRowsUsage *dst, InvRowsUsage *add)
+{
+	dst->inv_rows += add->inv_rows;
+}
+
+void
+InvRowsAccumDiff(InvRowsUsage *dst, const InvRowsUsage *add, const InvRowsUsage *sub)
+{
+	dst->inv_rows += add->inv_rows - sub->inv_rows;
 }

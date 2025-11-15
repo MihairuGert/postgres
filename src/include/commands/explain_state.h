@@ -50,6 +50,7 @@ typedef struct ExplainState
 	bool		costs;			/* print estimated costs */
 	bool		buffers;		/* print buffer usage */
 	bool		wal;			/* print WAL usage */
+	bool		inv_rows;		/* print # of invisible rows accessed */
 	bool		timing;			/* print detailed node timing */
 	bool		summary;		/* print total planning and execution timing */
 	bool		memory;			/* print planner's memory usage information */
